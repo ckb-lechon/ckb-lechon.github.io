@@ -41,6 +41,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .sign-in-button, .profile-chip { min-height: 40px; padding: 0 15px; display: inline-flex; align-items: center; justify-content: center; gap: 12px; border: 1px solid #ead8cf; border-radius: 13px; background: #fffaf6; box-shadow: 2px 3px 7px #c9846217, inset 1px 1px 2px #fff; font-size: 12px; font-weight: 700; }
 .sign-in-button svg { color: var(--tomato); }
 .profile-chip { padding-left: 7px; gap: 8px; }
+.logout-button { min-height: 40px; padding: 0 13px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; border: 1px solid #ead8cf; border-radius: 13px; color: #8b3925; background: #fffaf6; font-size: 12px; font-weight: 700; transition: color .18s ease, background .18s ease; }
+.logout-button:hover { color: white; border-color: var(--tomato); background: var(--tomato); }
 .profile-dot, .avatar-small { width: 27px; height: 27px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; color: #6b2916; background: var(--rose); font-size: 12px; font-weight: 700; }
 .mobile-menu { display: none; width: 39px; height: 39px; align-items: center; justify-content: center; border: 1px solid var(--line); border-radius: 12px; background: white; }
 
@@ -240,6 +242,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   .sign-in-button { min-height: 36px; padding: 0 11px; gap: 7px; border-radius: 11px; font-size: 10px; }
   .profile-chip { min-height: 36px; padding-right: 8px; gap: 6px; font-size: 10px; }
   .profile-dot { width: 24px; height: 24px; }
+  .topbar-actions { gap: 6px; }
+  .logout-button { width: 36px; min-height: 36px; padding: 0; border-radius: 11px; }
+  .logout-button span { display: none; }
   .mobile-menu { width: 36px; height: 36px; display: flex; }
   .hero { min-height: 0; margin-top: 1px; padding: 29px 20px 28px; grid-template-columns: 1fr; gap: 20px; }
   .hero-copy { padding: 0; }
@@ -347,5 +352,10 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   .order-dialog-photo { height: 132px; margin: -24px -20px 17px; }
   .product-dialog { width: 100%; }
   .toast { bottom: 12px; font-size: 9px; }
+}
+
+@media (max-width: 400px) {
+  .profile-chip { min-height: 36px; padding: 0; border: 0; background: transparent; box-shadow: none; }
+  .profile-chip > span:not(.profile-dot) { display: none; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; } }

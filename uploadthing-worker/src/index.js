@@ -70,7 +70,8 @@ function withCors(response, request, env) {
   const headers = new Headers(response.headers);
   const origin = request.headers.get("origin") ?? "";
   const allowed = new Set([env.CKB_ORIGIN, "http://localhost:3000", "http://127.0.0.1:3000"]);
-  if (allowed.has(origin)) headers.set("access-control-allow-origin", origin);
+  const localOrigin = /^http:\/\/(?:localhost|127\.0\.0\.1|\[::1\])(?::\d+)?$/.test(origin);
+  if (allowed.has(origin) || localOrigin) headers.set("access-control-allow-origin", origin);
   headers.set("access-control-allow-methods", "GET, POST, OPTIONS");
   headers.set("access-control-allow-headers", request.headers.get("access-control-request-headers") || "authorization, content-type");
   headers.set("access-control-max-age", "86400");

@@ -27,11 +27,11 @@ import {
   BadgeCheck,
   CalendarDays,
   Check,
-  ChevronDown,
   CircleHelp,
   Clock3,
   Flame,
-  Instagram,
+  Facebook,
+  LogOut,
   Menu,
   PackageCheck,
   Plus,
@@ -471,8 +471,11 @@ export default function HomePage() {
           {canManage && <button className={activeTab === "admin" ? "nav-link active" : "nav-link"} onClick={() => setActiveTab("admin")}>Order list</button>}
         </nav>
         <div className="topbar-actions">
-          {!signedIn ? <button className="sign-in-button" onClick={() => showSignIn("login")}>Sign in <ArrowRight size={16} /></button> : <button className="profile-chip" onClick={logout}><span className="profile-dot">{(profile.firstName || "C").slice(0, 1)}</span><span>{profile.firstName || "Account"}</span><ChevronDown size={14} /></button>}
-          {signedIn && <button className="mobile-menu" onClick={() => activeTab === "shop" ? requestOrders() : setActiveTab("shop")} aria-label={activeTab === "shop" ? "My Orders" : "Back to Order menu"}><Menu size={19} /></button>}
+          {!signedIn ? <button className="sign-in-button" onClick={() => showSignIn("login")}>Sign in <ArrowRight size={16} /></button> : <>
+            <div className="profile-chip"><span className="profile-dot">{(profile.firstName || "C").slice(0, 1)}</span><span>{profile.firstName || "Account"}</span></div>
+            <button className="mobile-menu" onClick={() => activeTab === "shop" ? requestOrders() : setActiveTab("shop")} aria-label={activeTab === "shop" ? "My Orders" : "Back to Order menu"}><Menu size={19} /></button>
+            <button className="logout-button" onClick={logout} aria-label="Log out" title="Log out"><LogOut size={16} /><span>Log out</span></button>
+          </>}
         </div>
       </header>
 
@@ -535,7 +538,7 @@ export default function HomePage() {
         <div className="admin-products-list">{products.map((product) => <article key={product.id}><div className="admin-product-photo" style={{ backgroundImage: `url("${product.imageUrl}")` }} /><div className="admin-product-copy"><strong>{product.name}</strong><span>{peso(product.price)} · {product.saleType === "promo" ? `Promo${product.promoFrom ? ` from ${formatDate(product.promoFrom)}` : ""}` : "Regular"}</span></div><button className="edit-product" onClick={() => openProductForm(product)}>Edit</button><button className="remove-product" onClick={() => archiveProduct(product)}>Remove</button></article>)}</div>
       </section>}
 
-      <footer className="site-footer"><div className="footer-brand"><span className="brand-stamp">CK<span>B</span></span><div><strong>CK Bless Lechon House</strong><span>Made for your kind of gathering.</span></div></div><div className="footer-note">MADE WITH HEART, SERVED WITH PRIDE <span>© 2026 CKB LECHON</span></div><a className="social-link" href="https://www.instagram.com/" target="_blank" rel="noreferrer" aria-label="Instagram"><Instagram size={17} /></a></footer>
+      <footer className="site-footer"><div className="footer-brand"><span className="brand-stamp">CK<span>B</span></span><div><strong>CK Bless Lechon House</strong><span>Made for your kind of gathering.</span></div></div><div className="footer-note">MADE WITH HEART, SERVED WITH PRIDE <span>© 2026 CKB LECHON</span></div><a className="social-link" href="https://www.facebook.com/LeAndrei.Yang7" target="_blank" rel="noreferrer" aria-label="Facebook"><Facebook size={17} /></a></footer>
 
       {demoMode && <div className="demo-role-switch"><span>PREVIEW AS</span><button className={demoMode === "customer" ? "selected" : ""} onClick={() => enterDemo("customer")}>Customer</button><button className={demoMode === "admin" ? "selected" : ""} onClick={() => enterDemo("admin")}>Staff</button><button onClick={logout} title="Exit preview"><X size={15} /></button></div>}
 
