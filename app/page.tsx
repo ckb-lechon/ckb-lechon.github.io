@@ -467,13 +467,13 @@ export default function HomePage() {
         </button>
         <nav className="desktop-nav" aria-label="Main navigation">
           <button className={activeTab === "shop" ? "nav-link active" : "nav-link"} onClick={() => setActiveTab("shop")}>Order</button>
-          {signedIn && <button className={activeTab === "orders" ? "nav-link active" : "nav-link"} onClick={requestOrders}>My Orders</button>}
-          {canManage && <button className={activeTab === "admin" ? "nav-link active" : "nav-link"} onClick={() => setActiveTab("admin")}>Order list</button>}
+          {signedIn && !canManage && <button className={activeTab === "orders" ? "nav-link active" : "nav-link"} onClick={requestOrders}>My Orders</button>}
+          {canManage && <button className={activeTab === "admin" ? "nav-link active" : "nav-link"} onClick={() => setActiveTab("admin")}>Order List</button>}
         </nav>
         <div className="topbar-actions">
           {!signedIn ? <button className="sign-in-button" onClick={() => showSignIn("login")}>Sign in <ArrowRight size={16} /></button> : <>
             <div className="profile-chip"><span className="profile-dot">{(profile.firstName || "C").slice(0, 1)}</span><span>{profile.firstName || "Account"}</span></div>
-            <button className="mobile-menu" onClick={() => activeTab === "shop" ? requestOrders() : setActiveTab("shop")} aria-label={activeTab === "shop" ? "My Orders" : "Back to Order menu"}><Menu size={19} /></button>
+            <button className="mobile-menu" onClick={() => canManage ? setActiveTab(activeTab === "admin" ? "shop" : "admin") : activeTab === "shop" ? requestOrders() : setActiveTab("shop")} aria-label={canManage ? activeTab === "admin" ? "Back to Order menu" : "Order List" : activeTab === "shop" ? "My Orders" : "Back to Order menu"}><Menu size={19} /></button>
             <button className="logout-button" onClick={logout} aria-label="Log out" title="Log out"><LogOut size={16} /><span>Log out</span></button>
           </>}
         </div>
