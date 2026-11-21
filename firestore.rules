@@ -11,8 +11,10 @@ service cloud.firestore {
         && product.active == true
         && request.resource.data.productName == product.name
         && request.resource.data.imageUrl == product.imageUrl
-        && request.resource.data.total == product.price
-        && request.resource.data.quantity == 1;
+        && request.resource.data.quantity is int
+        && request.resource.data.quantity >= 1
+        && request.resource.data.quantity <= 99
+        && request.resource.data.total == product.price * request.resource.data.quantity;
     }
 
     match /products/{productId} {

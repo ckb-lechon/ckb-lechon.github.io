@@ -168,6 +168,7 @@ export default function HomePage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [productDraft, setProductDraft] = useState<Product | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
+  const [orderQuantity, setOrderQuantity] = useState(1);
   const [pickupDate, setPickupDate] = useState("");
   const [pickupTime, setPickupTime] = useState("");
   const [dateFilter, setDateFilter] = useState("all");
@@ -293,6 +294,10 @@ export default function HomePage() {
   async function placeOrder(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!orderProduct || !pickupDate || !pickupTime) return;
+    if (!Number.isInteger(orderQuantity) || orderQuantity < 1 || orderQuantity > 99) {
+      setNotice("Choose a quantity from 1 to 99.");
+      return;
+    }
     const order: Omit<CustomerOrder, "id"> = {
       userId: currentUser?.uid ?? "demo-customer",
       customer: displayName(profile) || "Alex Customer",
@@ -301,8 +306,8 @@ export default function HomePage() {
       productId: orderProduct.id,
       productName: orderProduct.name,
       imageUrl: orderProduct.imageUrl,
-      quantity: 1,
-      total: orderProduct.price,
+      quantity: orderQuantity,
+      total: orderProduct.price * orderQuantity,
       pickupDate,
       pickupTime,
       paymentStatus: "due",
@@ -324,6 +329,7 @@ export default function HomePage() {
       }
       setActiveTab("orders");
       setOrderProduct(null);
+      setOrderQuantity(1);
       setPickupDate("");
       setPickupTime("");
       setNotice("Pickup booked. We'll have it ready for you!");
@@ -437,6 +443,7 @@ export default function HomePage() {
       return;
     }
     setOrderProduct(product);
+    setOrderQuantity(1);
     setPickupDate("");
     setPickupTime("");
   }
@@ -528,7 +535,7 @@ export default function HomePage() {
 
       {activeTab === "orders" && signedIn && !canManage && <section className="dashboard-section">
         <div className="dashboard-heading"><div><span className="eyebrow"><span className="eyebrow-line" /> YOUR CKB TABLE</span><h1>My orders<span className="heading-period">.</span></h1><p>Every good gathering starts with a plan.</p></div><button className="back-menu" onClick={() => setActiveTab("shop")}><ArrowLeft size={16} /> Back to menu</button></div>
-        {myOrders.length === 0 ? <div className="empty-state"><span className="empty-icon"><ShoppingBag /></span><h2>Your table is still open.</h2><p>Once you place an order, we’ll keep all the pickup details here.</p><button className="hero-cta" onClick={() => setActiveTab("shop")}>Browse the menu <ArrowRight size={16} /></button></div> : <div className="customer-order-list">{myOrders.map((order) => <article className="customer-order" key={order.id}><div className="order-thumb" style={{ backgroundImage: `url("${order.imageUrl}")` }} /><div className="customer-order-copy"><div className="customer-order-top"><h2>{order.productName}</h2><span className={`status-pill ${order.status === "delivered" ? "status-done" : "status-pending"}`}>{order.status === "delivered" ? "Delivered" : "Preparing"}</span></div><p>{order.quantity} item · {peso(order.total)}</p><div className="pickup-line"><CalendarDays size={15} />{formatDate(order.pickupDate)} <span>·</span><Clock3 size={15} />{formatTime(order.pickupTime)}</div></div><div className="payment-note">{order.paymentStatus === "paid" ? <><BadgeCheck size={16} /> Fully paid</> : <>Balance due <strong>{peso(order.total)}</strong></>}</div></article>)}</div>}
+        {myOrders.length === 0 ? <div className="empty-state"><span className="empty-icon"><ShoppingBag /></span><h2>Your table is still open.</h2><p>Once you place an order, we’ll keep all the pickup details here.</p><button className="hero-cta" onClick={() => setActiveTab("shop")}>Browse the menu <ArrowRight size={16} /></button></div> : <div className="customer-order-list">{myOrders.map((order) => <article className="customer-order" key={order.id}><div className="order-thumb" style={{ backgroundImage: `url("${order.imageUrl}")` }} /><div className="customer-order-copy"><div className="customer-order-top"><h2>{order.productName}</h2><span className={`status-pill ${order.status === "delivered" ? "status-done" : "status-pending"}`}>{order.status === "delivered" ? "Delivered" : "Preparing"}</span></div><p>{order.quantity} {order.quantity === 1 ? "item" : "items"} · {peso(order.total)}</p><div className="pickup-line"><CalendarDays size={15} />{formatDate(order.pickupDate)} <span>·</span><Clock3 size={15} />{formatTime(order.pickupTime)}</div></div><div className="payment-note">{order.paymentStatus === "paid" ? <><BadgeCheck size={16} /> Fully paid</> : <>Balance due <strong>{peso(order.total)}</strong></>}</div></article>)}</div>}
       </section>}
 
       {activeTab === "admin" && canManage && <section className="dashboard-section admin-section">
@@ -595,7 +602,7 @@ export default function HomePage() {
         </div>
       )}
 
-      {orderProduct && <div className="overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) setOrderProduct(null); }}><section className="dialog order-dialog" role="dialog" aria-modal="true" aria-labelledby="pickup-title"><button className="dialog-close" onClick={() => setOrderProduct(null)} aria-label="Close"><X size={19} /></button><div className="order-dialog-photo" style={{ backgroundImage: `url("${orderProduct.imageUrl}")` }} /><div className="dialog-kicker">MAKE IT A GATHERING</div><h2 id="pickup-title">Save your spot.</h2><p className="order-summary"><strong>{orderProduct.name}</strong><span>{peso(orderProduct.price)}</span></p><form className="auth-form" onSubmit={placeOrder}><label>Pickup date<input required type="date" min={today} value={pickupDate} onChange={(event) => setPickupDate(event.target.value)} /></label><label>Pickup time<select required value={pickupTime} onChange={(event) => setPickupTime(event.target.value)}><option value="">Choose a time</option>{["09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00"].map((time) => <option key={time} value={time}>{new Date(`2000-01-01T${time}`).toLocaleTimeString("en-PH", { hour: "numeric", minute: "2-digit" })}</option>)}</select></label>{!signedIn && <div className="pickup-note">Sign in or try a preview to confirm your pickup.</div>}<button className="submit-button" disabled={busy}>{busy ? "Saving your pickup..." : "Confirm pickup"}<ArrowRight size={16} /></button></form></section></div>}
+      {orderProduct && <div className="overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) setOrderProduct(null); }}><section className="dialog order-dialog" role="dialog" aria-modal="true" aria-labelledby="pickup-title"><button className="dialog-close" onClick={() => setOrderProduct(null)} aria-label="Close"><X size={19} /></button><div className="order-dialog-photo" style={{ backgroundImage: `url("${orderProduct.imageUrl}")` }} /><div className="dialog-kicker">MAKE IT A GATHERING</div><h2 id="pickup-title">Save your spot.</h2><p className="order-summary"><strong>{orderProduct.name}</strong><span>{peso(orderProduct.price * Math.max(1, orderQuantity))}</span></p><form className="auth-form" onSubmit={placeOrder}><label>Quantity<input type="number" min={1} max={99} step={1} required value={orderQuantity} onChange={(event) => setOrderQuantity(event.target.value === "" ? 0 : Number(event.target.value))} /></label><label>Pickup date<input required type="date" min={today} value={pickupDate} onChange={(event) => setPickupDate(event.target.value)} /></label><label>Pickup time<select required value={pickupTime} onChange={(event) => setPickupTime(event.target.value)}><option value="">Choose a time</option>{["09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00"].map((time) => <option key={time} value={time}>{new Date(`2000-01-01T${time}`).toLocaleTimeString("en-PH", { hour: "numeric", minute: "2-digit" })}</option>)}</select></label>{!signedIn && <div className="pickup-note">Sign in or try a preview to confirm your pickup.</div>}<button className="submit-button" disabled={busy}>{busy ? "Saving your pickup..." : "Confirm pickup"}<ArrowRight size={16} /></button></form></section></div>}
 
       {productDraft && <div className="overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) { setProductDraft(null); setEditingProduct(null); } }}><section className="dialog product-dialog" role="dialog" aria-modal="true" aria-labelledby="product-form-title"><button className="dialog-close" onClick={() => { setProductDraft(null); setEditingProduct(null); }} aria-label="Close"><X size={19} /></button><div className="dialog-kicker">THE CKB MENU</div><h2 id="product-form-title">{editingProduct ? "Edit menu item." : "Add something good."}</h2><form className="auth-form" onSubmit={saveProduct}><label>Order name<input required value={productDraft.name} onChange={(event) => setProductDraft({ ...productDraft, name: event.target.value })} /></label><label>Description<textarea required rows={3} value={productDraft.description} onChange={(event) => setProductDraft({ ...productDraft, description: event.target.value })} /></label><label>Price (₱)<input type="number" required min="0" step="0.01" value={productDraft.price || ""} onChange={(event) => setProductDraft({ ...productDraft, price: Number(event.target.value) })} /></label><label>Sale type<select value={productDraft.saleType} onChange={(event) => setProductDraft({ ...productDraft, saleType: event.target.value as Product["saleType"] })}><option value="regular">Regular</option><option value="promo">Promo</option></select></label>{productDraft.saleType === "promo" && <div className="name-fields"><label>Date from<input required type="date" value={productDraft.promoFrom || ""} onChange={(event) => setProductDraft({ ...productDraft, promoFrom: event.target.value })} /></label><label>Date to<input required type="date" value={productDraft.promoTo || ""} onChange={(event) => setProductDraft({ ...productDraft, promoTo: event.target.value })} /></label></div>}<label>Upload image<input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => setImageFile(event.target.files?.[0] ?? null)} /></label>{!uploadThingConfigured && !demoMode && <div className="pickup-note">Configure the UploadThing Worker URL to enable image uploads.</div>}<button className="submit-button" disabled={busy}>{busy ? uploadingImage ? "Uploading image..." : "Saving..." : editingProduct ? "Save changes" : "Add to menu"}<ArrowRight size={16} /></button></form></section></div>}
     </main>
