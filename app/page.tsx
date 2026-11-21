@@ -31,6 +31,7 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
+  CircleAlert,
   CircleHelp,
   Clock3,
   Flame,
@@ -177,6 +178,7 @@ export default function HomePage() {
   const [authMode, setAuthMode] = useState<AuthMode>("login");
   const [postAuthTab, setPostAuthTab] = useState<Tab | null>(null);
   const [orderProduct, setOrderProduct] = useState<Product | null>(null);
+  const [cancelOrderConfirmation, setCancelOrderConfirmation] = useState<CustomerOrder | null>(null);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
@@ -483,6 +485,23 @@ export default function HomePage() {
     }
   }
 
+  function requestOrderCancellation(order: CustomerOrder) {
+    const ownerId = currentUser?.uid ?? (demoMode === "customer" ? "demo-customer" : null);
+    if (!ownerId || order.userId !== ownerId) return;
+    if (!canCancelOrder(order, Date.now())) {
+      setNotice("Orders can only be cancelled within two hours of placing them.");
+      return;
+    }
+    setCancelOrderConfirmation(order);
+  }
+
+  async function confirmOrderCancellation() {
+    if (!cancelOrderConfirmation) return;
+    const order = cancelOrderConfirmation;
+    setCancelOrderConfirmation(null);
+    await cancelOrder(order);
+  }
+
   async function cancelOrder(order: CustomerOrder) {
     const ownerId = currentUser?.uid ?? (demoMode === "customer" ? "demo-customer" : null);
     if (!ownerId || order.userId !== ownerId) return;
@@ -490,8 +509,6 @@ export default function HomePage() {
       setNotice("Orders can only be cancelled within two hours of placing them.");
       return;
     }
-    if (!window.confirm("Cancel this order? This can’t be undone.")) return;
-
     setCancelingOrderId(order.id);
     try {
       if (demoMode === "customer") {
@@ -666,7 +683,7 @@ export default function HomePage() {
 
       {activeTab === "orders" && signedIn && !canManage && <section className="dashboard-section">
         <div className="dashboard-heading"><div><span className="eyebrow"><span className="eyebrow-line" /> YOUR CKB TABLE</span><h1>My orders<span className="heading-period">.</span></h1><p>Every good gathering starts with a plan.</p></div><button className="back-menu" onClick={() => setActiveTab("shop")}><ArrowLeft size={16} /> Back to menu</button></div>
-        {myOrders.length === 0 ? <div className="empty-state"><span className="empty-icon"><ShoppingBag /></span><h2>Your table is still open.</h2><p>Once you place an order, we’ll keep all the pickup details here.</p><button className="hero-cta" onClick={() => setActiveTab("shop")}>Browse the menu <ArrowRight size={16} /></button></div> : <div className="customer-order-list">{myOrders.map((order) => <article className="customer-order" key={order.id}><div className="order-thumb" style={{ backgroundImage: `url("${order.imageUrl}")` }} /><div className="customer-order-copy"><div className="customer-order-top"><h2>{order.productName}</h2><span className={`status-pill ${order.status === "delivered" ? "status-done" : order.status === "cancelled" ? "status-cancelled" : "status-pending"}`}>{order.status === "delivered" ? "Delivered" : order.status === "cancelled" ? "Cancelled" : "Preparing"}</span></div><p>{order.quantity} {order.quantity === 1 ? "item" : "items"} · {peso(order.total)}</p><div className="pickup-line"><CalendarDays size={15} />{formatDate(order.pickupDate)} <span>·</span><Clock3 size={15} />{formatTime(order.pickupTime)}</div></div><div className="customer-order-actions"><div className="payment-note">{orderBalance(order) === 0 ? <><BadgeCheck size={16} /> Fully paid</> : <>Balance due <strong>{peso(orderBalance(order))}</strong></>}</div>{canCancelOrder(order, currentTime) && <button className="cancel-order-button" onClick={() => cancelOrder(order)} disabled={cancelingOrderId === order.id}>{cancelingOrderId === order.id ? "Cancelling..." : "Cancel Order"}</button>}</div></article>)}</div>}
+        {myOrders.length === 0 ? <div className="empty-state"><span className="empty-icon"><ShoppingBag /></span><h2>Your table is still open.</h2><p>Once you place an order, we’ll keep all the pickup details here.</p><button className="hero-cta" onClick={() => setActiveTab("shop")}>Browse the menu <ArrowRight size={16} /></button></div> : <div className="customer-order-list">{myOrders.map((order) => <article className="customer-order" key={order.id}><div className="order-thumb" style={{ backgroundImage: `url("${order.imageUrl}")` }} /><div className="customer-order-copy"><div className="customer-order-top"><h2>{order.productName}</h2><span className={`status-pill ${order.status === "delivered" ? "status-done" : order.status === "cancelled" ? "status-cancelled" : "status-pending"}`}>{order.status === "delivered" ? "Delivered" : order.status === "cancelled" ? "Cancelled" : "Preparing"}</span></div><p>{order.quantity} {order.quantity === 1 ? "item" : "items"} · {peso(order.total)}</p><div className="pickup-line"><CalendarDays size={15} />{formatDate(order.pickupDate)} <span>·</span><Clock3 size={15} />{formatTime(order.pickupTime)}</div></div><div className="customer-order-actions"><div className="payment-note">{orderBalance(order) === 0 ? <><BadgeCheck size={16} /> Fully paid</> : <>Balance due <strong>{peso(orderBalance(order))}</strong></>}</div>{canCancelOrder(order, currentTime) && <button className="cancel-order-button" onClick={() => requestOrderCancellation(order)} disabled={cancelingOrderId === order.id}>{cancelingOrderId === order.id ? "Cancelling..." : "Cancel Order"}</button>}</div></article>)}</div>}
       </section>}
 
       {activeTab === "admin" && canManage && <section className="dashboard-section admin-section">
@@ -755,6 +772,8 @@ export default function HomePage() {
           </section>
         </div>
       )}
+
+      {cancelOrderConfirmation && <div className="overlay confirmation-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) setCancelOrderConfirmation(null); }} onKeyDown={(event) => { if (event.key === "Escape") setCancelOrderConfirmation(null); }}><section className="dialog confirmation-dialog" role="alertdialog" aria-modal="true" aria-labelledby="cancel-order-title" aria-describedby="cancel-order-description"><span className="confirmation-icon"><CircleAlert size={21} /></span><div className="dialog-kicker">YOUR CKB TABLE</div><h2 id="cancel-order-title">Cancel this order?</h2><p id="cancel-order-description">You’re cancelling <strong>{cancelOrderConfirmation.productName}</strong>. This can’t be undone.</p><div className="confirmation-order-summary"><span>{formatDate(cancelOrderConfirmation.pickupDate)} · {formatTime(cancelOrderConfirmation.pickupTime)}</span><strong>{peso(cancelOrderConfirmation.total)}</strong></div><div className="confirmation-actions"><button className="confirmation-keep" autoFocus onClick={() => setCancelOrderConfirmation(null)}>Keep order</button><button className="confirmation-cancel" onClick={confirmOrderCancellation} disabled={cancelingOrderId === cancelOrderConfirmation.id}>{cancelingOrderId === cancelOrderConfirmation.id ? "Cancelling…" : "Cancel order"}</button></div></section></div>}
 
       {orderProduct && <div className="overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) setOrderProduct(null); }}><section className="dialog order-dialog" role="dialog" aria-modal="true" aria-labelledby="pickup-title"><button className="dialog-close" onClick={() => setOrderProduct(null)} aria-label="Close"><X size={19} /></button><div className="order-dialog-photo" style={{ backgroundImage: `url("${orderProduct.imageUrl}")` }} /><div className="dialog-kicker">MAKE IT A GATHERING</div><h2 id="pickup-title">Save your spot.</h2><p className="order-summary"><strong>{orderProduct.name}</strong><span>{peso(orderProduct.price * Math.max(1, orderQuantity))}</span></p><form className="auth-form" onSubmit={placeOrder}><label>Quantity<input type="number" min={1} max={99} step={1} required value={orderQuantity} onChange={(event) => setOrderQuantity(event.target.value === "" ? 0 : Number(event.target.value))} /></label><label>Pickup date<input required type="date" min={today} value={pickupDate} onChange={(event) => setPickupDate(event.target.value)} /></label><label>Pickup time<input required type="time" min="09:00" max="18:00" step={60} value={pickupTime} onChange={(event) => setPickupTime(event.target.value)} /></label>{!signedIn && <div className="pickup-note">Sign in or try a preview to confirm your pickup.</div>}<button className="submit-button" disabled={busy}>{busy ? "Saving your pickup..." : "Confirm pickup"}<ArrowRight size={16} /></button></form></section></div>}
 

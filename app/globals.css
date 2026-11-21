@@ -217,6 +217,21 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .dialog-kicker { color: #a25138; font-size: 9px; font-weight: 700; }
 .dialog h2 { margin: 8px 0 6px; font-family: var(--serif); font-size: 31px; font-weight: 600; }
 .dialog > p { margin: 0 0 20px; color: var(--muted); font-size: 11px; line-height: 1.6; }
+.confirmation-dialog { width: min(100%, 410px); padding: 28px; }
+.confirmation-icon { width: 43px; height: 43px; margin-bottom: 16px; display: grid; place-items: center; border: 1px solid #f1c7b8; border-radius: 14px; color: #a64029; background: #ffebe2; }
+.confirmation-dialog h2 { margin: 8px 0 7px; font-size: 27px; }
+.confirmation-dialog > p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.6; }
+.confirmation-dialog > p strong { color: var(--ink); }
+.confirmation-order-summary { margin-top: 17px; padding: 12px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border: 1px solid #f0dfd5; border-radius: 11px; color: var(--muted); background: #fff4ed; font-size: 10px; }
+.confirmation-order-summary strong { color: var(--ink); font-size: 12px; }
+.confirmation-actions { margin-top: 22px; display: flex; justify-content: flex-end; gap: 9px; }
+.confirmation-actions button { min-height: 40px; padding: 0 13px; border-radius: 10px; font-size: 10px; font-weight: 700; transition: background .16s ease, transform .16s ease; }
+.confirmation-actions button:hover { transform: translateY(-1px); }
+.confirmation-keep { border: 1px solid #ead8cf; color: #664337; background: #fffdfa; }
+.confirmation-keep:hover { background: #fff1e9; }
+.confirmation-cancel { border: 1px solid #d5442c; color: white; background: var(--tomato); box-shadow: inset 1px 2px 4px #ff9878; }
+.confirmation-cancel:hover { background: #df3600; }
+.confirmation-cancel:disabled { cursor: progress; opacity: .65; }
 .auth-form { display: flex; flex-direction: column; gap: 12px; }
 .auth-form label { display: flex; flex-direction: column; gap: 5px; color: #76594e; font-size: 10px; font-weight: 700; }
 .auth-form input, .auth-form select, .auth-form textarea { width: 100%; min-height: 41px; padding: 9px 11px; border: 1px solid #ead8cf; border-radius: 9px; color: var(--ink); background: #fffdfa; font-size: 12px; font-weight: 500; }
