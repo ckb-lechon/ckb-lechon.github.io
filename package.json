@@ -7,8 +7,7 @@
     "build": "next build",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "set:admin": "node scripts/set-admin.mjs",
-    "seed:products": "node scripts/seed-products.mjs"
+    "set:admin": "node scripts/set-admin.mjs"
   },
   "dependencies": {
     "firebase": "^12.5.0",

@@ -6,7 +6,7 @@ Mobile-first ordering for CK Bless Lechon House, built with Next.js, Firebase, a
 
 1. Copy `.env.example` to `.env.local`. The Firebase web app values are already filled in.
 2. In Firebase Console, enable **Authentication > Email/Password**, create a Firestore database, and add your local site to the authorized domains.
-3. In an environment authenticated with Google Application Default Credentials for `ck-lechon`, run `npm run seed:products` once to publish the starter menu into Firestore.
+3. Add the current menu items from the admin page.
 4. Run `npm install` and `npm run dev`.
 
 Customers register and sign in with email and password; their mobile number is saved as a contact detail. The Firebase web config is public by design; Firestore rules protect the data.

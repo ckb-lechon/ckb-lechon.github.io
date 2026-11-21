@@ -93,43 +93,7 @@ type CustomerOrder = {
 type Tab = "shop" | "orders" | "admin";
 type AuthMode = "login" | "signup";
 
-const productPhotos = {
-  lechon: "https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=1000&q=85",
-  belly: "https://images.unsplash.com/photo-1604908176997-125f25cc6f3d?auto=format&fit=crop&w=1000&q=85",
-  sisig: "https://images.unsplash.com/photo-1598515214211-89d3c73ae83b?auto=format&fit=crop&w=1000&q=85",
-};
-
-const starterProducts: Product[] = [
-  {
-    id: "whole-lechon",
-    name: "Whole Lechon",
-    description: "Golden, crackling skin. Tender, slow-roasted goodness made for your whole table.",
-    price: 12500,
-    saleType: "promo",
-    promoFrom: "2026-01-01",
-    promoTo: "2026-12-31",
-    imageUrl: productPhotos.lechon,
-    active: true,
-  },
-  {
-    id: "lechon-belly",
-    name: "Lechon Belly Roll",
-    description: "All the lechon flavor, wrapped up with crispy skin and aromatic herbs.",
-    price: 3200,
-    saleType: "regular",
-    imageUrl: productPhotos.belly,
-    active: true,
-  },
-  {
-    id: "crispy-sisig",
-    name: "Lechon Sisig",
-    description: "A sizzling, savory favorite with that unmistakable lechon crunch.",
-    price: 480,
-    saleType: "regular",
-    imageUrl: productPhotos.sisig,
-    active: true,
-  },
-];
+const retiredSampleProductIds = new Set(["whole-lechon", "lechon-belly", "crispy-sisig"]);
 
 const blankProfile: Profile = { firstName: "", middleName: "", lastName: "", suffix: "", address: "", phone: "", email: "" };
 const peso = (value: number) => `₱${value.toLocaleString("en-PH", { maximumFractionDigits: 2 })}`;
@@ -157,7 +121,7 @@ function canCancelOrder(order: CustomerOrder, now: number) {
 }
 
 export default function HomePage() {
-  const [products, setProducts] = useState<Product[]>(starterProducts);
+  const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<CustomerOrder[]>([]);
   const [profile, setProfile] = useState<Profile>(blankProfile);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -216,7 +180,7 @@ export default function HomePage() {
     const stopProducts = onSnapshot(productsQuery, (snapshot) => {
       const list = snapshot.docs
         .map((item) => ({ id: item.id, ...item.data() }) as Product)
-        .filter((item) => admin || item.active)
+        .filter((item) => !retiredSampleProductIds.has(item.id) && (admin || item.active))
         .sort((left, right) => left.name.localeCompare(right.name));
       setProducts(list);
     });
@@ -469,7 +433,10 @@ export default function HomePage() {
     setProfile(role === "customer"
       ? { firstName: "Alex", middleName: "", lastName: "Customer", suffix: "", address: "San Juan, Metro Manila", phone: "+639171234567", email: "alex@example.com" }
       : { firstName: "CKB", middleName: "", lastName: "Staff", suffix: "", address: "", phone: "", email: "" });
-    setProducts(JSON.parse(localStorage.getItem("ckb-demo-products") || "null") || starterProducts);
+    const demoProducts = JSON.parse(localStorage.getItem("ckb-demo-products") || "[]") as Product[];
+    const currentProducts = demoProducts.filter((product) => !retiredSampleProductIds.has(product.id));
+    setProducts(currentProducts);
+    localStorage.setItem("ckb-demo-products", JSON.stringify(currentProducts));
     setOrders(JSON.parse(localStorage.getItem("ckb-demo-orders") || "[]"));
     setActiveTab(role === "admin" ? "admin" : "shop");
     setNotice(`${role === "admin" ? "Staff" : "Customer"} preview opened. Changes are saved on this device only.`);
