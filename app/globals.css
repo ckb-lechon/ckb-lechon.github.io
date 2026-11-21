@@ -174,8 +174,6 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .footer-brand .brand-stamp { width: 35px; height: 35px; border-radius: 12px; font-size: 14px; }
 .footer-brand strong { font-family: var(--serif); font-size: 13px; }
 .footer-brand span:not(.brand-stamp) { color: var(--muted); font-size: 9px; }
-.footer-note { display: flex; flex-direction: column; gap: 5px; color: #9b7465; font-size: 8px; font-weight: 700; text-align: center; }
-.footer-note span { color: #b3988b; font-size: 8px; font-weight: 500; }
 .social-link { width: 35px; height: 35px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 12px; color: #9d5842; background: #fff9f5; }
 
 .demo-launch, .demo-admin-launch { position: fixed; right: 17px; bottom: 17px; z-index: 12; min-height: 42px; padding: 0 13px; display: flex; align-items: center; gap: 8px; border: 1px solid #ffb191; border-radius: 12px; color: white; background: var(--tomato); box-shadow: 2px 4px 10px #53201330; font-size: 10px; font-weight: 700; }
@@ -344,8 +342,6 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   .footer-brand .brand-stamp { width: 30px; height: 30px; font-size: 12px; }
   .footer-brand strong { max-width: 145px; font-size: 10px; }
   .footer-brand span:not(.brand-stamp) { max-width: 145px; font-size: 7px; }
-  .footer-note { max-width: 115px; font-size: 6px; }
-  .footer-note span { font-size: 6px; }
   .social-link { width: 30px; height: 30px; flex-shrink: 0; border-radius: 10px; }
   .demo-role-switch { margin: 0 9px 9px auto; padding: 4px; gap: 2px; }
   .demo-role-switch > span { padding: 0 4px; font-size: 7px; }
