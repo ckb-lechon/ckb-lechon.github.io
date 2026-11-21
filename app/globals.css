@@ -150,13 +150,15 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .calendar-balance { color: #a94a2e; font-weight: 700; white-space: nowrap; }
 .calendar-balance.paid { color: var(--green); }
 .calendar-empty-state { min-height: 150px; display: grid; place-items: center; color: var(--muted); font-size: 11px; text-align: center; }
-.admin-metrics { margin: 0 0 42px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.admin-metrics { margin: 0 0 42px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
 .admin-metrics > div { min-height: 89px; padding: 15px 17px; position: relative; display: flex; flex-direction: column; justify-content: space-between; border: 1px solid #f1d8cc; border-radius: 13px; background: #fff1e8; box-shadow: inset 2px 3px 6px white, inset -3px -4px 7px #e8cabd, 3px 5px 10px #88412c12; }
 .admin-metrics > div:nth-child(2) { background: #ffefe8; }
 .admin-metrics > div:nth-child(3) { background: #fff4d9; }
+.admin-metrics > div:nth-child(4) { background: #edf3e6; }
 .admin-metrics span { color: #9b6450; font-size: 9px; font-weight: 700; }
 .admin-metrics strong { font-family: var(--serif); font-size: 26px; font-weight: 600; }
 .admin-metrics svg { position: absolute; top: 16px; right: 16px; color: #ce694b; }
+.admin-metrics > div:nth-child(4) svg { color: var(--green); }
 .order-list-heading, .admin-products-heading { margin: 0 0 12px; display: flex; align-items: center; justify-content: space-between; }
 .order-list-heading h2, .admin-products-heading h2 { font-size: 23px; }
 .order-list-heading > div > span, .admin-products-heading > div > span { color: var(--muted); font-size: 10px; }
@@ -276,6 +278,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   .menu-section { padding-right: 5%; padding-left: 5%; }
   .product-grid { gap: 14px; }
   .product-image { height: 180px; }
+  .admin-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .admin-order { grid-template-columns: 1fr 1fr .8fr .8fr .8fr; }
   .admin-order .delivered-toggle { grid-column: 5; justify-self: end; }
 }
