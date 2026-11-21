@@ -624,9 +624,6 @@ export default function HomePage() {
           </div>
         </section>
 
-        <section className="gathering-strip">
-          <div className="strip-mark"><Flame size={20} /></div><button onClick={() => document.getElementById("menu")?.scrollIntoView({ behavior: "smooth" })}>Explore menu <ArrowRight size={16} /></button>
-        </section>
       </>}
 
       {activeTab === "orders" && signedIn && !canManage && <section className="dashboard-section">

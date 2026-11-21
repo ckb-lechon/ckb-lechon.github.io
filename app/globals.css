@@ -90,10 +90,6 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .order-button:hover { background: var(--tomato); }
 .empty-menu { grid-column: 1 / -1; padding: 28px; color: var(--muted); text-align: center; }
 
-.gathering-strip { max-width: 1090px; min-height: 94px; margin: 0 auto 78px; padding: 20px 30px; display: flex; align-items: center; justify-content: space-between; gap: 17px; border: 1px solid #f4d0c3; border-radius: 16px; background: linear-gradient(105deg, #ffe5d5, #fff1e8 61%, #ffe1de); box-shadow: inset 2px 3px 7px white, inset -2px -4px 9px #eed0c3, 5px 8px 17px #9a50301c; }
-.strip-mark { width: 43px; height: 43px; flex-shrink: 0; display: grid; place-items: center; border-radius: 15px; color: white; background: var(--tomato); box-shadow: inset 2px 3px 5px #ff9976, inset -2px -3px 5px #c12e00; }
-.gathering-strip > button { padding: 0; display: inline-flex; align-items: center; gap: 10px; border: 0; background: transparent; color: #8c3822; font-size: 11px; font-weight: 700; }
-
 .dashboard-section { max-width: 1200px; min-height: 64vh; margin: auto; padding: 58px 6% 90px; }
 .dashboard-heading { margin-bottom: 34px; display: flex; align-items: flex-end; justify-content: space-between; gap: 15px; }
 .dashboard-heading h1 { margin: 13px 0 5px; font-size: 48px; }
@@ -312,11 +308,6 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   .promo-date { margin-bottom: 5px; font-size: 8px; }
   .order-button { height: 32px; min-height: 32px; padding: 0 9px; border-radius: 8px; font-size: 9px; }
   .order-button svg { width: 13px; }
-  .gathering-strip { min-height: 78px; margin: 0 17px 43px; padding: 12px; gap: 10px; border-radius: 13px; }
-  .strip-mark { width: 35px; height: 35px; border-radius: 12px; }
-  .strip-mark svg { width: 16px; }
-  .gathering-strip > button { gap: 4px; font-size: 8px; white-space: nowrap; }
-  .gathering-strip > button svg { width: 13px; }
   .dashboard-section { min-height: 70vh; padding: 31px 17px 56px; }
   .dashboard-heading { margin-bottom: 23px; align-items: flex-start; }
   .dashboard-heading h1 { margin: 10px 0 5px; font-size: 39px; }
