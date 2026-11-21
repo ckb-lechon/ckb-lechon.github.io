@@ -5,18 +5,36 @@ Mobile-first ordering for CK Bless Lechon House, built with Next.js, Firebase, a
 ## Run locally
 
 1. Copy `.env.example` to `.env.local`. The Firebase web app values are already filled in.
-2. In Firebase Console, enable **Authentication > Phone** and **Email/Password**, create a Firestore database, enable Storage, and add your local site to the authorized domains.
-3. Run `npm install` and `npm run dev`.
+2. In Firebase Console, enable **Authentication > Email/Password**, create a Firestore database, and add your local site to the authorized domains.
+3. In an environment authenticated with Google Application Default Credentials for `ck-lechon`, run `npm run seed:products` once to publish the starter menu into Firestore.
+4. Run `npm install` and `npm run dev`.
 
-Phone signup verifies the number with Firebase SMS, then links password sign-in to that verified account. The Firebase web config is public by design; Firestore and Storage rules protect the data.
+Customers register and sign in with email and password; their mobile number is saved as a contact detail. The Firebase web config is public by design; Firestore rules protect the data.
 
 ## Admin access
 
-Admin access is enforced by the `admin: true` Firebase Authentication custom claim, not by a client-editable profile field. In a trusted environment authenticated with Google Application Default Credentials for the `ck-lechon` project, run `npm run set:admin -- <firebase-auth-uid>` for a verified staff account, then sign out and back in to refresh the ID token. Never expose a service-account key in this static website. Deploy `firestore.rules` and `storage.rules` before opening ordering to customers.
+Admin access is enforced by the `admin: true` Firebase Authentication custom claim and a server-managed `users/{uid}.role == "admin"` field. In a trusted environment authenticated with Google Application Default Credentials for the `ck-lechon` project, run `npm run set:admin -- <firebase-auth-uid>` for a staff account, then sign out and back in to refresh the ID token. Never expose a service-account key in this static website. Firestore rules are deployed to `ck-lechon`.
+
+Before using email/password sign-in in production, enable the Email/Password provider and add `ckb-lechon.github.io` to **Authentication > Settings > Authorized domains**.
+
+## Product image uploads (no Blaze plan)
+
+Product images use UploadThing through a Cloudflare Worker, following the upload pattern from the PS project. Firebase Storage and Firebase Functions are not used. Create an UploadThing app, then deploy the Worker:
+
+```bash
+cd uploadthing-worker
+npm install
+npx wrangler login
+npx wrangler secret put UPLOADTHING_TOKEN
+npx wrangler secret put FIREBASE_API_KEY
+npm run deploy
+```
+
+Set `NEXT_PUBLIC_UPLOADTHING_URL` to `https://ckb-lechon-uploadthing.<your-workers-subdomain>.workers.dev/api/uploadthing` in `.env.local` and as a GitHub Actions repository variable, then rebuild/redeploy the site. The Worker validates the Firebase ID token, checks the server-managed admin profile, and accepts JPEG, PNG, or WebP images up to 8 MB. To use local uploads, copy `uploadthing-worker/.dev.vars.example` to `.dev.vars`, fill in those two values, and run `npm run dev` in that folder.
 
 ## GitHub Pages
 
-This project uses Next.js static export (`out/`), which is compatible with GitHub Pages but keeps Firebase operations client-side. In repository settings, enable **Pages > GitHub Actions**. The workflow loads the public Firebase web configuration from `.env.example`; pushing `main` deploys at `https://ckb-lechon.github.io`.
+This project uses Next.js static export (`out/`), which is compatible with GitHub Pages. In repository settings, enable **Pages > GitHub Actions** and add the Worker URL as the `NEXT_PUBLIC_UPLOADTHING_URL` Actions variable. The workflow loads public Firebase web configuration from `.env.example`; pushing `main` deploys at `https://ckb-lechon.github.io`.
 
 ## Firebase data
 
@@ -24,4 +42,4 @@ This project uses Next.js static export (`out/`), which is compatible with GitHu
 - `users`: name, address, phone, and a non-privileged profile role.
 - `orders`: product snapshot, pickup slot, buyer details, payment status, and delivery status.
 
-Phone authentication requires a real SMS verification code before password-based login is enabled. Configure Firebase phone sign-in quotas, SMS regions, billing, and reCAPTCHA as required by the Firebase project.
+Firebase Authentication email/password accounts should use a valid customer email address. Configure password policy and authorized domains in Firebase Console.

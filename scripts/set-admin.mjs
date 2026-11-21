@@ -1,5 +1,6 @@
 import { applicationDefault, initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
+import { getFirestore } from "firebase-admin/firestore";
 
 const uid = process.argv[2];
 
@@ -12,4 +13,5 @@ initializeApp({ credential: applicationDefault() });
 
 const user = await getAuth().getUser(uid);
 await getAuth().setCustomUserClaims(uid, { ...user.customClaims, admin: true });
-console.log(`Granted admin access to ${user.phoneNumber ?? user.uid}. Sign out and back in to refresh the ID token.`);
+await getFirestore().collection("users").doc(uid).set({ role: "admin" }, { merge: true });
+console.log(`Granted admin access to ${user.email ?? user.uid}. Sign out and back in to refresh the ID token.`);

@@ -26,6 +26,8 @@ jobs:
       - run: npm ci
       - run: cp .env.example .env.local
       - run: npm run build
+        env:
+          NEXT_PUBLIC_UPLOADTHING_URL: ${{ vars.NEXT_PUBLIC_UPLOADTHING_URL }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: out

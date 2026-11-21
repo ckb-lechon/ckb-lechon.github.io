@@ -1,14 +1,10 @@
 "use client";
 
 import {
-  EmailAuthProvider,
-  linkWithCredential,
+  createUserWithEmailAndPassword,
   onAuthStateChanged,
-  RecaptchaVerifier,
   signInWithEmailAndPassword,
-  signInWithPhoneNumber,
   signOut,
-  type ConfirmationResult,
   type User,
 } from "firebase/auth";
 import {
@@ -22,7 +18,8 @@ import {
   updateDoc,
   where,
 } from "firebase/firestore";
-import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
+import { generateReactHelpers } from "@uploadthing/react";
+import type { AnyFileRoute } from "uploadthing/types";
 import {
   ArrowDownRight,
   ArrowLeft,
@@ -42,8 +39,13 @@ import {
   Sparkles,
   X,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
-import { auth, db, firebaseEnabled, storage } from "@/lib/firebase";
+import { useEffect, useState } from "react";
+import { auth, db, firebaseEnabled } from "@/lib/firebase";
+
+const uploadThingUrl = process.env.NEXT_PUBLIC_UPLOADTHING_URL || "";
+const uploadThingConfigured = Boolean(uploadThingUrl);
+type CkbUploadRouter = { productImage: AnyFileRoute };
+const { useUploadThing } = generateReactHelpers<CkbUploadRouter>({ url: uploadThingUrl || "/api/uploadthing" });
 
 type Product = {
   id: string;
@@ -64,6 +66,7 @@ type Profile = {
   suffix: string;
   address: string;
   phone: string;
+  email: string;
 };
 
 type CustomerOrder = {
@@ -125,7 +128,7 @@ const starterProducts: Product[] = [
   },
 ];
 
-const blankProfile: Profile = { firstName: "", middleName: "", lastName: "", suffix: "", address: "", phone: "" };
+const blankProfile: Profile = { firstName: "", middleName: "", lastName: "", suffix: "", address: "", phone: "", email: "" };
 const peso = (value: number) => `₱${value.toLocaleString("en-PH", { maximumFractionDigits: 2 })}`;
 const productCollection = () => collection(db!, "products");
 const orderCollection = () => collection(db!, "orders");
@@ -133,17 +136,6 @@ const profilePath = (uid: string) => doc(db!, "users", uid);
 
 function displayName(profile: Profile) {
   return [profile.firstName, profile.middleName, profile.lastName, profile.suffix].filter(Boolean).join(" ");
-}
-
-function normalizePhone(phone: string) {
-  const digits = phone.replace(/\D/g, "");
-  if (digits.startsWith("63")) return `+${digits}`;
-  if (digits.startsWith("0")) return `+63${digits.slice(1)}`;
-  return `+${digits}`;
-}
-
-function loginEmail(phone: string) {
-  return `phone.${normalizePhone(phone).replace(/\D/g, "")}@ckblechon.com`;
 }
 
 function formatDate(value: string) {
@@ -165,6 +157,7 @@ export default function HomePage() {
   const [activeTab, setActiveTab] = useState<Tab>("shop");
   const [authOpen, setAuthOpen] = useState(false);
   const [authMode, setAuthMode] = useState<AuthMode>("login");
+  const [postAuthTab, setPostAuthTab] = useState<Tab | null>(null);
   const [orderProduct, setOrderProduct] = useState<Product | null>(null);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [notice, setNotice] = useState("");
@@ -173,15 +166,14 @@ export default function HomePage() {
   const [authProfile, setAuthProfile] = useState<Profile>(blankProfile);
   const [authPassword, setAuthPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [otpCode, setOtpCode] = useState("");
-  const [codeSent, setCodeSent] = useState(false);
   const [productDraft, setProductDraft] = useState<Product | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [pickupDate, setPickupDate] = useState("");
   const [pickupTime, setPickupTime] = useState("");
   const [dateFilter, setDateFilter] = useState("all");
-  const confirmation = useRef<ConfirmationResult | null>(null);
-  const verifier = useRef<RecaptchaVerifier | null>(null);
+  const { startUpload, isUploading } = useUploadThing("productImage", {
+    headers: async () => ({ Authorization: `Bearer ${await currentUser!.getIdToken()}` }),
+  });
 
   useEffect(() => {
     if (!firebaseEnabled || !auth || !db) return;
@@ -197,7 +189,6 @@ export default function HomePage() {
       const token = await user.getIdTokenResult();
       const isStaff = token.claims.admin === true;
       setAdmin(isStaff);
-      if (user.phoneNumber) setProfile((current) => ({ ...current, phone: user.phoneNumber ?? current.phone }));
       const userSnapshot = await getDoc(profilePath(user.uid));
       if (userSnapshot.exists()) setProfile(userSnapshot.data() as Profile);
     });
@@ -244,16 +235,14 @@ export default function HomePage() {
     setAuthProfile(blankProfile);
     setAuthPassword("");
     setConfirmPassword("");
-    setCodeSent(false);
-    setOtpCode("");
     setAuthOpen(true);
   }
 
-  async function sendVerificationCode(event: React.FormEvent<HTMLFormElement>) {
+  async function register(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setAuthError("");
-    if (!auth || !authProfile.phone || !authProfile.firstName || !authProfile.lastName || !authPassword || !authProfile.address) {
-      setAuthError("Please complete your name, address, mobile number, and password first.");
+    if (!auth || !authProfile.email || !authProfile.phone || !authProfile.firstName || !authProfile.lastName || !authPassword || !authProfile.address) {
+      setAuthError("Please complete your name, address, contact number, email, and password.");
       return;
     }
     if (authPassword.length < 6 || authPassword !== confirmPassword) {
@@ -262,41 +251,20 @@ export default function HomePage() {
     }
     setBusy(true);
     try {
-      verifier.current?.clear();
-      verifier.current = new RecaptchaVerifier(auth, "phone-recaptcha", { size: "normal" });
-      confirmation.current = await signInWithPhoneNumber(auth, normalizePhone(authProfile.phone), verifier.current);
-      setCodeSent(true);
-      setNotice("Verification code sent.");
-    } catch (error) {
-      setAuthError(error instanceof Error ? error.message : "Unable to send a verification code. Check the mobile number and try again.");
-      verifier.current?.clear();
-      verifier.current = null;
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function finishSignup(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!auth || !confirmation.current) return;
-    setBusy(true);
-    setAuthError("");
-    try {
-      const phoneUser = await confirmation.current.confirm(otpCode.trim());
-      const credential = EmailAuthProvider.credential(loginEmail(authProfile.phone), authPassword);
-      await linkWithCredential(phoneUser.user, credential);
-      await setDoc(profilePath(phoneUser.user.uid), {
+      const credential = await createUserWithEmailAndPassword(auth, authProfile.email.trim().toLowerCase(), authPassword);
+      await setDoc(profilePath(credential.user.uid), {
         ...authProfile,
-        phone: normalizePhone(authProfile.phone),
+        email: authProfile.email.trim().toLowerCase(),
         role: "user",
         createdAt: Date.now(),
       });
-      setProfile({ ...authProfile, phone: normalizePhone(authProfile.phone) });
+      setProfile({ ...authProfile, email: authProfile.email.trim().toLowerCase() });
       setAuthOpen(false);
-      setNotice("Your number is verified. Welcome to CKB Lechon!");
-      confirmation.current = null;
+      if (postAuthTab) setActiveTab(postAuthTab);
+      setPostAuthTab(null);
+      setNotice("Your account is ready. Welcome to CKB Lechon!");
     } catch (error) {
-      setAuthError(error instanceof Error ? error.message : "We couldn't verify the code. Please check it and try again.");
+      setAuthError(error instanceof Error ? error.message : "Unable to create your account. Please try again.");
     } finally {
       setBusy(false);
     }
@@ -308,14 +276,16 @@ export default function HomePage() {
     setBusy(true);
     setAuthError("");
     try {
-      const result = await signInWithEmailAndPassword(auth, loginEmail(authProfile.phone), authPassword);
+      const result = await signInWithEmailAndPassword(auth, authProfile.email.trim().toLowerCase(), authPassword);
       const data = await getDoc(profilePath(result.user.uid));
       if (data.exists()) setProfile(data.data() as Profile);
       setAuthOpen(false);
+      if (postAuthTab) setActiveTab(postAuthTab);
+      setPostAuthTab(null);
       setNotice("You're signed in. Let's find something delicious.");
     } catch (error) {
       setAuthError(error instanceof Error && error.message.includes("invalid-credential")
-        ? "That mobile number and password don't match. New here? Create an account and verify your number by SMS."
+        ? "That email and password don't match. New here? Create an account to get started."
         : error instanceof Error ? error.message : "Unable to sign in. Please try again.");
     } finally {
       setBusy(false);
@@ -373,12 +343,14 @@ export default function HomePage() {
     try {
       let imageUrl = productDraft.imageUrl || productPhotos.lechon;
       if (imageFile) {
-        if (storage && !demoMode) {
-          const imageRef = ref(storage, `products/${Date.now()}-${imageFile.name.replace(/[^\w.-]/g, "-")}`);
-          await uploadBytes(imageRef, imageFile, { contentType: imageFile.type });
-          imageUrl = await getDownloadURL(imageRef);
-        } else {
+        if (demoMode) {
           imageUrl = URL.createObjectURL(imageFile);
+        } else {
+          if (!uploadThingConfigured || !currentUser) throw new Error("Product image uploads are not configured yet.");
+          const uploaded = await startUpload([imageFile]);
+          const file = uploaded?.[0] as { serverData?: { imageUrl?: string }; ufsUrl?: string; url?: string } | undefined;
+          imageUrl = file?.serverData?.imageUrl ?? file?.ufsUrl ?? file?.url ?? "";
+          if (!imageUrl) throw new Error("The image uploaded, but its URL was not returned.");
         }
       }
       const { id, ...data } = { ...productDraft, imageUrl, active: true };
@@ -440,8 +412,8 @@ export default function HomePage() {
     setAdmin(role === "admin");
     setCurrentUser(null);
     setProfile(role === "customer"
-      ? { firstName: "Alex", middleName: "", lastName: "Customer", suffix: "", address: "San Juan, Metro Manila", phone: "+639171234567" }
-      : { firstName: "CKB", middleName: "", lastName: "Staff", suffix: "", address: "", phone: "" });
+      ? { firstName: "Alex", middleName: "", lastName: "Customer", suffix: "", address: "San Juan, Metro Manila", phone: "+639171234567", email: "alex@example.com" }
+      : { firstName: "CKB", middleName: "", lastName: "Staff", suffix: "", address: "", phone: "", email: "" });
     setProducts(JSON.parse(localStorage.getItem("ckb-demo-products") || "null") || starterProducts);
     setOrders(JSON.parse(localStorage.getItem("ckb-demo-orders") || "[]"));
     setActiveTab(role === "admin" ? "admin" : "shop");
@@ -453,6 +425,26 @@ export default function HomePage() {
     setEditingProduct(product ?? null);
     setProductDraft({ ...item });
     setImageFile(null);
+  }
+
+  function requestOrder(product: Product) {
+    if (!signedIn) {
+      setOrderProduct(null);
+      showSignIn("login");
+      return;
+    }
+    setOrderProduct(product);
+    setPickupDate("");
+    setPickupTime("");
+  }
+
+  function requestOrders() {
+    if (!signedIn) {
+      setPostAuthTab("orders");
+      showSignIn("login");
+      return;
+    }
+    setActiveTab("orders");
   }
 
   const filteredOrders = orders.filter((order) => dateFilter === "all" || (dateFilter === "pending" ? order.status === "pending" : order.paymentStatus === "due"));
@@ -471,13 +463,13 @@ export default function HomePage() {
           <span className="brand-words"><strong>CKB Lechon</strong><small>CK Bless Lechon House</small></span>
         </button>
         <nav className="desktop-nav" aria-label="Main navigation">
-          <button className={activeTab === "shop" ? "nav-link active" : "nav-link"} onClick={() => setActiveTab("shop")}>Order <span>01</span></button>
-          {signedIn && <button className={activeTab === "orders" ? "nav-link active" : "nav-link"} onClick={() => setActiveTab("orders")}>My order <span>{orders.length.toString().padStart(2, "0")}</span></button>}
-          {canManage && <button className={activeTab === "admin" ? "nav-link active" : "nav-link"} onClick={() => setActiveTab("admin")}>Order list <span>•</span></button>}
+          <button className={activeTab === "shop" ? "nav-link active" : "nav-link"} onClick={() => setActiveTab("shop")}>Order</button>
+          {signedIn && <button className={activeTab === "orders" ? "nav-link active" : "nav-link"} onClick={requestOrders}>My Orders</button>}
+          {canManage && <button className={activeTab === "admin" ? "nav-link active" : "nav-link"} onClick={() => setActiveTab("admin")}>Order list</button>}
         </nav>
         <div className="topbar-actions">
           {!signedIn ? <button className="sign-in-button" onClick={() => showSignIn("login")}>Sign in <ArrowRight size={16} /></button> : <button className="profile-chip" onClick={logout}><span className="profile-dot">{(profile.firstName || "C").slice(0, 1)}</span><span>{profile.firstName || "Account"}</span><ChevronDown size={14} /></button>}
-          <button className="mobile-menu" onClick={() => setActiveTab(activeTab === "shop" ? "orders" : "shop")} aria-label="Switch view"><Menu size={19} /></button>
+          {signedIn && <button className="mobile-menu" onClick={() => activeTab === "shop" ? requestOrders() : setActiveTab("shop")} aria-label={activeTab === "shop" ? "My Orders" : "Back to Order menu"}><Menu size={19} /></button>}
         </div>
       </header>
 
@@ -508,13 +500,13 @@ export default function HomePage() {
               return <article className={`product-card product-card-${index % 3}`} key={product.id}>
                 <div className="product-image" style={{ backgroundImage: `url("${product.imageUrl || productPhotos.lechon}")` }}>
                   <span className={isPromo ? "product-tag promo-tag" : "product-tag"}>{isPromo ? <><Flame size={12} /> SPECIAL</> : "HOUSE FAVORITE"}</span>
-                  <button className="product-heart" title="Order this item" onClick={() => { setOrderProduct(product); if (!signedIn) showSignIn("login"); }}><ArrowUpRightIcon /></button>
+                  <button className="product-heart" title="Order this item" onClick={() => requestOrder(product)}><ArrowUpRightIcon /></button>
                 </div>
                 <div className="product-info">
                   <div className="product-title-line"><h3>{product.name}</h3><span>{peso(product.price)}</span></div>
                   <p>{product.description}</p>
                   {isPromo && product.promoTo && <small className="promo-date">Promo through {formatDate(product.promoTo)}</small>}
-                  <button className="order-button" onClick={() => { setOrderProduct(product); setPickupDate(""); setPickupTime(""); }}>Order this <ArrowRight size={15} /></button>
+                  <button className="order-button" onClick={() => requestOrder(product)}>Order this <ArrowRight size={15} /></button>
                 </div>
               </article>;
             })}
@@ -546,17 +538,58 @@ export default function HomePage() {
 
       {notice && <div className="toast" role="status"><Check size={16} />{notice}<button onClick={() => setNotice("")} aria-label="Dismiss"><X size={15} /></button></div>}
 
-      {authOpen && <div className="overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) { setAuthOpen(false); verifier.current?.clear(); verifier.current = null; } }}><section className="dialog auth-dialog" role="dialog" aria-modal="true" aria-labelledby="auth-title"><button className="dialog-close" onClick={() => setAuthOpen(false)} aria-label="Close"><X size={19} /></button><div className="dialog-kicker">CKB LECHON HOUSE</div><h2 id="auth-title">{authMode === "signup" ? "Come on in." : "Welcome back."}</h2><p>{authMode === "signup" ? "Create your account and we’ll save a place at the table." : "Sign in to schedule your next feast."}</p>
-        {!firebaseEnabled ? <div className="auth-preview"><span><Sparkles size={19} /></span><strong>Firebase is not connected yet.</strong><p>Use a local preview account to explore customer and staff screens.</p><button className="submit-button" onClick={() => { setAuthOpen(false); enterDemo("customer"); }}>Continue as customer <ArrowRight size={16} /></button><button className="preview-staff-link" onClick={() => { setAuthOpen(false); enterDemo("admin"); }}>Open staff preview <ArrowRight size={14} /></button><div className="preview-divider">OR CONNECT YOUR ACCOUNT</div><button className="text-button" onClick={() => setAuthMode(authMode === "signup" ? "login" : "signup")}>{authMode === "signup" ? "Already have an account? Sign in" : "New to CKB? Create an account"}</button></div> : <>
-          {authMode === "login" ? <form className="auth-form" onSubmit={signIn}><label>Mobile number<input required type="tel" autoComplete="tel" placeholder="09XX XXX XXXX" value={authProfile.phone} onChange={(event) => setAuthProfile({ ...authProfile, phone: event.target.value })} /></label><label>Password<input required type="password" autoComplete="current-password" placeholder="Your password" value={authPassword} onChange={(event) => setAuthPassword(event.target.value)} /></label>{authError && <div className="form-error">{authError}</div>}<button className="submit-button" disabled={busy}>{busy ? "Signing in..." : "Sign in"}<ArrowRight size={16} /></button><button type="button" className="text-button" onClick={() => showSignIn("signup")}>New to CKB? Create an account</button></form> : <form className="auth-form" onSubmit={codeSent ? finishSignup : sendVerificationCode}>
-            {!codeSent ? <><div className="name-fields"><label>First name<input required value={authProfile.firstName} onChange={(event) => setAuthProfile({ ...authProfile, firstName: event.target.value })} /></label><label>Middle name<input value={authProfile.middleName} onChange={(event) => setAuthProfile({ ...authProfile, middleName: event.target.value })} /></label><label>Last name<input required value={authProfile.lastName} onChange={(event) => setAuthProfile({ ...authProfile, lastName: event.target.value })} /></label><label>Suffix<input placeholder="Jr., III" value={authProfile.suffix} onChange={(event) => setAuthProfile({ ...authProfile, suffix: event.target.value })} /></label></div><label>Delivery address<input required autoComplete="street-address" value={authProfile.address} onChange={(event) => setAuthProfile({ ...authProfile, address: event.target.value })} /></label><label>Mobile number<input required type="tel" autoComplete="tel" placeholder="09XX XXX XXXX" value={authProfile.phone} onChange={(event) => setAuthProfile({ ...authProfile, phone: event.target.value })} /></label><div className="name-fields"><label>Password<input required type="password" autoComplete="new-password" minLength={6} value={authPassword} onChange={(event) => setAuthPassword(event.target.value)} /></label><label>Confirm password<input required type="password" autoComplete="new-password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} /></label></div><div id="phone-recaptcha" />{authError && <div className="form-error">{authError}</div>}<button className="submit-button" disabled={busy}>{busy ? "Sending code..." : "Verify mobile number"}<ArrowRight size={16} /></button></> : <><label>SMS verification code<input autoFocus inputMode="numeric" autoComplete="one-time-code" maxLength={6} required placeholder="6-digit code" value={otpCode} onChange={(event) => setOtpCode(event.target.value)} /></label><p className="otp-help">Enter the code we sent to {normalizePhone(authProfile.phone)}.</p>{authError && <div className="form-error">{authError}</div>}<button className="submit-button" disabled={busy}>{busy ? "Verifying..." : "Create my account"}<ArrowRight size={16} /></button><button type="button" className="text-button" onClick={() => { setCodeSent(false); setOtpCode(""); }}>Back to your details</button></>}
-            <button type="button" className="text-button" onClick={() => showSignIn("login")}>Already have an account? Sign in</button></form>}
-          </>}
-        </section></div>}
+      {authOpen && (
+        <div className="overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) setAuthOpen(false); }}>
+          <section className="dialog auth-dialog" role="dialog" aria-modal="true" aria-labelledby="auth-title">
+            <button className="dialog-close" onClick={() => setAuthOpen(false)} aria-label="Close"><X size={19} /></button>
+            <div className="dialog-kicker">CKB LECHON HOUSE</div>
+            <h2 id="auth-title">{authMode === "signup" ? "Come on in." : "Welcome back."}</h2>
+            <p>{authMode === "signup" ? "Create your account and we’ll save a place at the table." : "Sign in to schedule your next feast."}</p>
+            {!firebaseEnabled ? (
+              <div className="auth-preview">
+                <span><Sparkles size={19} /></span>
+                <strong>Firebase is not connected yet.</strong>
+                <p>Use a local preview account to explore customer and staff screens.</p>
+                <button className="submit-button" onClick={() => { setAuthOpen(false); enterDemo("customer"); }}>Continue as customer <ArrowRight size={16} /></button>
+                <button className="preview-staff-link" onClick={() => { setAuthOpen(false); enterDemo("admin"); }}>Open staff preview <ArrowRight size={14} /></button>
+                <div className="preview-divider">OR CONNECT YOUR ACCOUNT</div>
+                <button className="text-button" onClick={() => setAuthMode(authMode === "signup" ? "login" : "signup")}>{authMode === "signup" ? "Already have an account? Sign in" : "New to CKB? Create an account"}</button>
+              </div>
+            ) : authMode === "login" ? (
+              <form className="auth-form" onSubmit={signIn}>
+                <label>Email<input required type="email" autoComplete="email" placeholder="you@example.com" value={authProfile.email} onChange={(event) => setAuthProfile({ ...authProfile, email: event.target.value })} /></label>
+                <label>Password<input required type="password" autoComplete="current-password" placeholder="Your password" value={authPassword} onChange={(event) => setAuthPassword(event.target.value)} /></label>
+                {authError && <div className="form-error">{authError}</div>}
+                <button className="submit-button" disabled={busy}>{busy ? "Signing in..." : "Sign in"}<ArrowRight size={16} /></button>
+                <button type="button" className="text-button" onClick={() => showSignIn("signup")}>New to CKB? Create an account</button>
+              </form>
+            ) : (
+              <form className="auth-form" onSubmit={register}>
+                <div className="name-fields">
+                  <label>First name<input required autoComplete="given-name" value={authProfile.firstName} onChange={(event) => setAuthProfile({ ...authProfile, firstName: event.target.value })} /></label>
+                  <label>Middle name<input autoComplete="additional-name" value={authProfile.middleName} onChange={(event) => setAuthProfile({ ...authProfile, middleName: event.target.value })} /></label>
+                  <label>Last name<input required autoComplete="family-name" value={authProfile.lastName} onChange={(event) => setAuthProfile({ ...authProfile, lastName: event.target.value })} /></label>
+                  <label>Suffix<input placeholder="Jr., III" value={authProfile.suffix} onChange={(event) => setAuthProfile({ ...authProfile, suffix: event.target.value })} /></label>
+                </div>
+                <label>Address<input required autoComplete="street-address" value={authProfile.address} onChange={(event) => setAuthProfile({ ...authProfile, address: event.target.value })} /></label>
+                <label>Contact number<input required type="tel" autoComplete="tel" placeholder="09XX XXX XXXX" value={authProfile.phone} onChange={(event) => setAuthProfile({ ...authProfile, phone: event.target.value })} /></label>
+                <label>Email<input required type="email" autoComplete="email" placeholder="you@example.com" value={authProfile.email} onChange={(event) => setAuthProfile({ ...authProfile, email: event.target.value })} /></label>
+                <div className="name-fields">
+                  <label>Password<input required type="password" autoComplete="new-password" minLength={6} value={authPassword} onChange={(event) => setAuthPassword(event.target.value)} /></label>
+                  <label>Confirm password<input required type="password" autoComplete="new-password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} /></label>
+                </div>
+                {authError && <div className="form-error">{authError}</div>}
+                <button className="submit-button" disabled={busy}>{busy ? "Creating account..." : "Create account"}<ArrowRight size={16} /></button>
+                <button type="button" className="text-button" onClick={() => showSignIn("login")}>Already have an account? Sign in</button>
+              </form>
+            )}
+          </section>
+        </div>
+      )}
 
       {orderProduct && <div className="overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) setOrderProduct(null); }}><section className="dialog order-dialog" role="dialog" aria-modal="true" aria-labelledby="pickup-title"><button className="dialog-close" onClick={() => setOrderProduct(null)} aria-label="Close"><X size={19} /></button><div className="order-dialog-photo" style={{ backgroundImage: `url("${orderProduct.imageUrl}")` }} /><div className="dialog-kicker">MAKE IT A GATHERING</div><h2 id="pickup-title">Save your spot.</h2><p className="order-summary"><strong>{orderProduct.name}</strong><span>{peso(orderProduct.price)}</span></p><form className="auth-form" onSubmit={placeOrder}><label>Pickup date<input required type="date" min={today} value={pickupDate} onChange={(event) => setPickupDate(event.target.value)} /></label><label>Pickup time<select required value={pickupTime} onChange={(event) => setPickupTime(event.target.value)}><option value="">Choose a time</option>{["09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00"].map((time) => <option key={time} value={time}>{new Date(`2000-01-01T${time}`).toLocaleTimeString("en-PH", { hour: "numeric", minute: "2-digit" })}</option>)}</select></label>{!signedIn && <div className="pickup-note">Sign in or try a preview to confirm your pickup.</div>}<button className="submit-button" disabled={busy}>{busy ? "Saving your pickup..." : "Confirm pickup"}<ArrowRight size={16} /></button></form></section></div>}
 
-      {productDraft && <div className="overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) { setProductDraft(null); setEditingProduct(null); } }}><section className="dialog product-dialog" role="dialog" aria-modal="true" aria-labelledby="product-form-title"><button className="dialog-close" onClick={() => { setProductDraft(null); setEditingProduct(null); }} aria-label="Close"><X size={19} /></button><div className="dialog-kicker">THE CKB MENU</div><h2 id="product-form-title">{editingProduct ? "Edit menu item." : "Add something good."}</h2><form className="auth-form" onSubmit={saveProduct}><label>Order name<input required value={productDraft.name} onChange={(event) => setProductDraft({ ...productDraft, name: event.target.value })} /></label><label>Description<textarea required rows={3} value={productDraft.description} onChange={(event) => setProductDraft({ ...productDraft, description: event.target.value })} /></label><label>Price (₱)<input type="number" required min="0" step="0.01" value={productDraft.price || ""} onChange={(event) => setProductDraft({ ...productDraft, price: Number(event.target.value) })} /></label><label>Sale type<select value={productDraft.saleType} onChange={(event) => setProductDraft({ ...productDraft, saleType: event.target.value as Product["saleType"] })}><option value="regular">Regular</option><option value="promo">Promo</option></select></label>{productDraft.saleType === "promo" && <div className="name-fields"><label>Date from<input required type="date" value={productDraft.promoFrom || ""} onChange={(event) => setProductDraft({ ...productDraft, promoFrom: event.target.value })} /></label><label>Date to<input required type="date" value={productDraft.promoTo || ""} onChange={(event) => setProductDraft({ ...productDraft, promoTo: event.target.value })} /></label></div>}<label>Upload image<input type="file" accept="image/*" onChange={(event) => setImageFile(event.target.files?.[0] ?? null)} /></label>{!firebaseEnabled && <div className="pickup-note">Preview images and menu changes are saved in this browser.</div>}<button className="submit-button" disabled={busy}>{busy ? "Saving..." : editingProduct ? "Save changes" : "Add to menu"}<ArrowRight size={16} /></button></form></section></div>}
+      {productDraft && <div className="overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) { setProductDraft(null); setEditingProduct(null); } }}><section className="dialog product-dialog" role="dialog" aria-modal="true" aria-labelledby="product-form-title"><button className="dialog-close" onClick={() => { setProductDraft(null); setEditingProduct(null); }} aria-label="Close"><X size={19} /></button><div className="dialog-kicker">THE CKB MENU</div><h2 id="product-form-title">{editingProduct ? "Edit menu item." : "Add something good."}</h2><form className="auth-form" onSubmit={saveProduct}><label>Order name<input required value={productDraft.name} onChange={(event) => setProductDraft({ ...productDraft, name: event.target.value })} /></label><label>Description<textarea required rows={3} value={productDraft.description} onChange={(event) => setProductDraft({ ...productDraft, description: event.target.value })} /></label><label>Price (₱)<input type="number" required min="0" step="0.01" value={productDraft.price || ""} onChange={(event) => setProductDraft({ ...productDraft, price: Number(event.target.value) })} /></label><label>Sale type<select value={productDraft.saleType} onChange={(event) => setProductDraft({ ...productDraft, saleType: event.target.value as Product["saleType"] })}><option value="regular">Regular</option><option value="promo">Promo</option></select></label>{productDraft.saleType === "promo" && <div className="name-fields"><label>Date from<input required type="date" value={productDraft.promoFrom || ""} onChange={(event) => setProductDraft({ ...productDraft, promoFrom: event.target.value })} /></label><label>Date to<input required type="date" value={productDraft.promoTo || ""} onChange={(event) => setProductDraft({ ...productDraft, promoTo: event.target.value })} /></label></div>}<label>Upload image<input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => setImageFile(event.target.files?.[0] ?? null)} /></label>{!uploadThingConfigured && !demoMode && <div className="pickup-note">Configure the UploadThing Worker URL to enable image uploads.</div>}<button className="submit-button" disabled={busy}>{busy ? isUploading ? "Uploading image..." : "Saving..." : editingProduct ? "Save changes" : "Add to menu"}<ArrowRight size={16} /></button></form></section></div>}
     </main>
   );
 }

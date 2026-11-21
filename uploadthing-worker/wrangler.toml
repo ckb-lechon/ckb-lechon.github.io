@@ -1,0 +1,12 @@
+name = "ckb-lechon-uploadthing"
+main = "src/index.js"
+compatibility_date = "2026-10-09"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = true
+
+[vars]
+FIREBASE_PROJECT_ID = "ck-lechon"
+CKB_ORIGIN = "https://ckb-lechon.github.io"
+
+[observability]
+enabled = true

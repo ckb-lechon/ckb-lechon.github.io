@@ -25,14 +25,14 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 
 .app-shell { min-height: 100vh; overflow: hidden; background-image: radial-gradient(#e9aa8d30 .8px, transparent .8px); background-size: 24px 24px; }
 .demo-ribbon { min-height: 29px; padding: 6px 16px; display: flex; justify-content: center; align-items: center; gap: 7px; color: #612414; background: var(--rose); font-size: 11px; font-weight: 700; letter-spacing: 0; }
-.topbar { max-width: 1440px; height: 82px; margin: auto; padding: 0 7.2%; display: flex; align-items: center; justify-content: space-between; gap: 24px; }
+.topbar { max-width: 1440px; height: 82px; margin: auto; padding: 0 7.2%; display: flex; align-items: center; justify-content: flex-start; gap: 24px; }
 .brand-lockup { padding: 0; display: flex; align-items: center; gap: 11px; border: 0; background: transparent; text-align: left; }
 .brand-stamp { width: 43px; height: 43px; display: inline-flex; align-items: center; justify-content: center; border-radius: 15px 15px 17px 12px; color: white; background: var(--coral); box-shadow: inset 3px 4px 6px #ffffff72, inset -4px -4px 8px #d94d2b63, 3px 4px 9px #913a261c; font-family: var(--serif); font-size: 17px; font-weight: 700; transform: rotate(-4deg); }
 .brand-stamp span { color: #fff5df; }
 .brand-words, .footer-brand div { display: flex; flex-direction: column; gap: 2px; }
 .brand-words strong { font-family: var(--serif); font-size: 18px; font-weight: 700; }
 .brand-words small { color: var(--muted); font-size: 10px; }
-.desktop-nav { height: 100%; display: flex; align-items: center; gap: 36px; }
+.desktop-nav { height: 100%; margin-left: auto; display: flex; align-items: center; gap: 36px; }
 .nav-link { height: 100%; padding: 3px 1px 0; position: relative; display: flex; align-items: center; gap: 8px; border: 0; background: transparent; color: #79645c; font-size: 13px; font-weight: 600; }
 .nav-link span { color: #bc9a8b; font-size: 9px; }
 .nav-link.active { color: var(--tomato); }
