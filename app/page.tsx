@@ -161,6 +161,10 @@ function orderBalance(order: CustomerOrder) {
   return order.paymentStatus === "paid" ? 0 : Math.max(0, order.total - (order.downpayment ?? 0));
 }
 
+function isPromoExpired(product: Product, dateKey: string) {
+  return product.saleType === "promo" && Boolean(product.promoTo && dateKey > product.promoTo);
+}
+
 export default function HomePage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<CustomerOrder[]>([]);
@@ -341,6 +345,11 @@ export default function HomePage() {
   async function placeOrder(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!orderProduct || !pickupDate || !pickupTime) return;
+    if (isPromoExpired(orderProduct, manilaDateKey(new Date()))) {
+      setOrderProduct(null);
+      setNotice("This promo has ended and is no longer available.");
+      return;
+    }
     if (!Number.isInteger(orderQuantity) || orderQuantity < 1 || orderQuantity > 99) {
       setNotice("Choose a quantity from 1 to 99.");
       return;
@@ -562,7 +571,7 @@ export default function HomePage() {
   const orderOwnerId = currentUser?.uid ?? (demoMode === "customer" ? "demo-customer" : null);
   const myOrders = orderOwnerId ? orders.filter((order) => order.userId === orderOwnerId) : [];
   const todayKey = localDateKey(new Date());
-  const menuProducts = products.filter((product) => product.saleType !== "promo" || !product.promoTo || !today || today <= product.promoTo);
+  const menuProducts = products.filter((product) => !today || !isPromoExpired(product, today));
   const [calendarYear, calendarMonthNumber] = calendarMonth.split("-").map(Number);
   const calendarMonthDate = calendarMonth ? new Date(calendarYear, calendarMonthNumber - 1, 1) : null;
   const calendarOffset = calendarMonthDate ? calendarMonthDate.getDay() : 0;
