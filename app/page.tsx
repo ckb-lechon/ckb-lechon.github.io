@@ -517,7 +517,7 @@ export default function HomePage() {
 
       <header className="topbar">
         <button className="brand-lockup" onClick={() => setActiveTab("shop")} aria-label="CKB Lechon home">
-          <span className="brand-stamp">CK<span>B</span></span>
+          <span className="brand-stamp brand-icon" aria-hidden="true" />
           <span className="brand-words"><strong>CKB Lechon</strong><small>CK Bless Lechon House</small></span>
         </button>
         <nav className="desktop-nav" aria-label="Main navigation">

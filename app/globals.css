@@ -28,6 +28,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .topbar { max-width: 1440px; height: 82px; margin: auto; padding: 0 7.2%; display: flex; align-items: center; justify-content: flex-start; gap: 24px; }
 .brand-lockup { padding: 0; display: flex; align-items: center; gap: 11px; border: 0; background: transparent; text-align: left; }
 .brand-stamp { width: 43px; height: 43px; display: inline-flex; align-items: center; justify-content: center; border-radius: 15px 15px 17px 12px; color: white; background: var(--coral); box-shadow: inset 3px 4px 6px #ffffff72, inset -4px -4px 8px #d94d2b63, 3px 4px 9px #913a261c; font-family: var(--serif); font-size: 17px; font-weight: 700; transform: rotate(-4deg); }
+.brand-icon { background: var(--coral) url("/ckb-icon-logo.png") center / 76% no-repeat; }
 .brand-stamp span { color: #fff5df; }
 .brand-words, .footer-brand div { display: flex; flex-direction: column; gap: 2px; }
 .brand-words strong { font-family: var(--serif); font-size: 18px; font-weight: 700; }
