@@ -235,7 +235,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .qr-dialog h2 { margin: 9px 0 5px; text-align: center; }
 .qr-dialog > p { max-width: 290px; margin: 0 0 15px; text-align: center; }
 .downpayment-qr-image { display: block; width: min(100%, 300px); max-height: min(48vh, 430px); border: 1px solid #ead8cf; border-radius: 11px; background: white; object-fit: contain; }
-.qr-save-button { width: 100%; margin-top: 15px; text-decoration: none; }
+.qr-dialog .qr-save-button { width: 100%; margin-top: 24px; text-decoration: none; }
 .auth-form { display: flex; flex-direction: column; gap: 12px; }
 .auth-form label { display: flex; flex-direction: column; gap: 5px; color: #76594e; font-size: 10px; font-weight: 700; }
 .auth-form input, .auth-form select, .auth-form textarea { width: 100%; min-height: 41px; padding: 9px 11px; border: 1px solid #ead8cf; border-radius: 9px; color: var(--ink); background: #fffdfa; font-size: 12px; font-weight: 500; }
@@ -349,7 +349,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   .cancel-order-button { min-height: 27px; padding: 0 8px; font-size: 8px; }
   .qr-dialog { padding: 24px 20px; }
   .downpayment-qr-image { max-height: 42vh; }
-  .qr-save-button { margin-top: 12px; }
+  .qr-dialog .qr-save-button { margin-top: 12px; }
   .admin-metrics { margin-bottom: 27px; gap: 7px; }
   .admin-calendar-layout { margin-bottom: 27px; grid-template-columns: minmax(0, 1fr); gap: 12px; }
   .admin-calendar-card, .admin-selected-date { padding: 13px; border-radius: 12px; }
