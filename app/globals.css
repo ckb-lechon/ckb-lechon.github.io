@@ -44,7 +44,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .profile-chip { padding-left: 7px; gap: 8px; }
 .logout-button { min-height: 40px; padding: 0 13px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; border: 1px solid #ead8cf; border-radius: 13px; color: #8b3925; background: #fffaf6; font-size: 12px; font-weight: 700; transition: color .18s ease, background .18s ease; }
 .logout-button:hover { color: white; border-color: var(--tomato); background: var(--tomato); }
-.profile-dot, .avatar-small { width: 27px; height: 27px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; color: #6b2916; background: var(--rose); font-size: 12px; font-weight: 700; }
+.profile-dot { width: 27px; height: 27px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; color: #6b2916; background: var(--rose); font-size: 12px; font-weight: 700; }
 .mobile-menu { display: none; width: 39px; height: 39px; align-items: center; justify-content: center; border: 1px solid var(--line); border-radius: 12px; background: white; }
 
 .hero { position: relative; max-width: 1280px; min-height: 456px; margin: 8px auto 0; padding: 70px 7%; display: grid; grid-template-columns: 1fr 47%; align-items: center; isolation: isolate; }
@@ -165,11 +165,10 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .order-list-heading select { min-height: 35px; padding: 0 10px; border: 1px solid var(--line); border-radius: 9px; color: #745a50; background: #fffaf6; font-size: 10px; }
 .admin-order-list { display: grid; gap: 8px; }
 .admin-order { min-height: 93px; padding: 12px; display: grid; grid-template-columns: 1.2fr 1.08fr .8fr .7fr .7fr auto; align-items: center; gap: 12px; border: 1px solid #f0e2d9; border-radius: 13px; background: #fffaf6; box-shadow: 3px 4px 9px #9a48220e, inset 1px 2px 4px white; }
-.admin-customer { min-width: 0; display: flex; align-items: center; gap: 9px; }
-.admin-customer .avatar-small { flex-shrink: 0; width: 31px; height: 31px; }
+.admin-customer { min-width: 0; display: flex; align-items: center; }
 .admin-customer > div, .admin-order-item > div:nth-child(2) { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .admin-customer strong, .admin-order-item strong { overflow: hidden; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
-.admin-customer span:not(.avatar-small), .admin-customer a, .admin-order-item span { overflow: hidden; color: #927a70; font-size: 9px; text-decoration: none; text-overflow: ellipsis; white-space: nowrap; }
+.admin-customer span, .admin-customer a, .admin-order-item span { overflow: hidden; color: #927a70; font-size: 9px; text-decoration: none; text-overflow: ellipsis; white-space: nowrap; }
 .admin-order-item { min-width: 0; display: flex; align-items: center; gap: 8px; }
 .admin-order-photo { width: 47px; height: 47px; flex-shrink: 0; border-radius: 9px; background-position: center; background-size: cover; }
 .admin-pickup, .admin-downpayment, .admin-balance { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
@@ -357,12 +356,10 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   .order-list-heading > div > span, .admin-products-heading > div > span { font-size: 8px; }
   .order-list-heading select { min-height: 31px; max-width: 134px; padding: 0 6px; font-size: 8px; }
   .admin-order { padding: 10px; grid-template-columns: 1fr 1fr; gap: 10px 8px; }
-  .admin-customer { gap: 6px; }
-  .admin-customer .avatar-small { width: 26px; height: 26px; font-size: 10px; }
   .admin-customer strong, .admin-order-item strong { font-size: 9px; }
-  .admin-customer span:not(.avatar-small), .admin-customer a, .admin-order-item span { font-size: 8px; }
+  .admin-customer span, .admin-customer a, .admin-order-item span { font-size: 8px; }
   .admin-order-photo { width: 36px; height: 36px; }
-  .admin-pickup { grid-column: 1; grid-row: 2; padding-left: 32px; }
+  .admin-pickup { grid-column: 1; grid-row: 2; }
   .admin-pickup strong, .admin-pickup > span:last-child { font-size: 9px; }
   .admin-downpayment { grid-column: 2; grid-row: 2; }
   .downpayment-input input { width: 72px; min-height: 27px; font-size: 8px; }
