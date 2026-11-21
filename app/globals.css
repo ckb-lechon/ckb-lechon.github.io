@@ -242,7 +242,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   .sign-in-button { min-height: 36px; padding: 0 11px; gap: 7px; border-radius: 11px; font-size: 10px; }
   .profile-chip { min-height: 36px; padding-right: 8px; gap: 6px; font-size: 10px; }
   .profile-dot { width: 24px; height: 24px; }
-  .topbar-actions { gap: 6px; }
+  .topbar-actions { margin-left: auto; gap: 6px; }
   .logout-button { width: 36px; min-height: 36px; padding: 0; border-radius: 11px; }
   .logout-button span { display: none; }
   .mobile-menu { width: 36px; height: 36px; display: flex; }
