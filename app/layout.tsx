@@ -9,6 +9,19 @@ export const metadata: Metadata = {
   description:
     "Celebrate with golden, freshly roasted lechon from CK Bless Lechon House. Browse the menu and schedule your pickup.",
   applicationName: "CKB Lechon",
+  manifest: "/manifest.webmanifest",
+  icons: {
+    icon: [
+      { url: "/favicon-32.png", sizes: "32x32", type: "image/png" },
+      { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+  },
+  appleWebApp: {
+    capable: true,
+    title: "CKB Lechon",
+    statusBarStyle: "default",
+  },
   openGraph: {
     type: "website",
     url: siteUrl,
