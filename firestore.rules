@@ -14,7 +14,21 @@ service cloud.firestore {
         && request.resource.data.quantity is int
         && request.resource.data.quantity >= 1
         && request.resource.data.quantity <= 99
-        && request.resource.data.total == product.price * request.resource.data.quantity;
+        && request.resource.data.total == product.price * request.resource.data.quantity
+        && request.resource.data.createdAt is int
+        && request.resource.data.createdAt <= request.time.toMillis()
+        && request.resource.data.createdAt >= request.time.toMillis() - 300000;
+    }
+    function ownerCanCancelOrder() {
+      return signedIn()
+        && resource.data.userId == request.auth.uid
+        && resource.data.status == 'pending'
+        && request.resource.data.status == 'cancelled'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'cancelledAt'])
+        && request.resource.data.cancelledAt == request.time
+        && resource.data.createdAt is int
+        && resource.data.createdAt <= request.time.toMillis()
+        && request.time.toMillis() - resource.data.createdAt <= 7200000;
     }
 
     match /products/{productId} {
@@ -34,7 +48,7 @@ service cloud.firestore {
     match /orders/{orderId} {
       allow create: if signedIn() && validOrder();
       allow read: if signedIn() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow update: if isAdmin();
+      allow update: if isAdmin() || ownerCanCancelOrder();
       allow delete: if isAdmin();
     }
   }

@@ -14,9 +14,11 @@ import {
   getDoc,
   onSnapshot,
   query,
+  serverTimestamp,
   setDoc,
   updateDoc,
   where,
+  type Timestamp,
 } from "firebase/firestore";
 import { generateReactHelpers } from "@uploadthing/react";
 import type { AnyFileRoute } from "uploadthing/types";
@@ -83,8 +85,9 @@ type CustomerOrder = {
   pickupDate: string;
   pickupTime: string;
   paymentStatus: "paid" | "due";
-  status: "pending" | "delivered";
+  status: "pending" | "delivered" | "cancelled";
   createdAt: number;
+  cancelledAt?: number | Timestamp;
 };
 
 type Tab = "shop" | "orders" | "admin";
@@ -130,6 +133,7 @@ const starterProducts: Product[] = [
 
 const blankProfile: Profile = { firstName: "", middleName: "", lastName: "", suffix: "", address: "", phone: "", email: "" };
 const peso = (value: number) => `₱${value.toLocaleString("en-PH", { maximumFractionDigits: 2 })}`;
+const orderCancellationWindowMs = 2 * 60 * 60 * 1000;
 const productCollection = () => collection(db!, "products");
 const orderCollection = () => collection(db!, "orders");
 const profilePath = (uid: string) => doc(db!, "users", uid);
@@ -145,6 +149,11 @@ function formatDate(value: string) {
 
 function formatTime(value: string) {
   return new Date(`2000-01-01T${value}`).toLocaleTimeString("en-PH", { hour: "numeric", minute: "2-digit" });
+}
+
+function canCancelOrder(order: CustomerOrder, now: number) {
+  const age = now - order.createdAt;
+  return order.status === "pending" && age >= 0 && age <= orderCancellationWindowMs;
 }
 
 export default function HomePage() {
@@ -173,6 +182,14 @@ export default function HomePage() {
   const [pickupTime, setPickupTime] = useState("");
   const [dateFilter, setDateFilter] = useState("all");
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [cancelingOrderId, setCancelingOrderId] = useState<string | null>(null);
+
+  useEffect(() => {
+    setCurrentTime(Date.now());
+    const timer = window.setInterval(() => setCurrentTime(Date.now()), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     if (!firebaseEnabled || !auth || !db) return;
@@ -407,6 +424,35 @@ export default function HomePage() {
     setNotice("Order updated.");
   }
 
+  async function cancelOrder(order: CustomerOrder) {
+    const ownerId = currentUser?.uid ?? (demoMode === "customer" ? "demo-customer" : null);
+    if (!ownerId || order.userId !== ownerId) return;
+    if (!canCancelOrder(order, Date.now())) {
+      setNotice("Orders can only be cancelled within two hours of placing them.");
+      return;
+    }
+    if (!window.confirm("Cancel this order? This can’t be undone.")) return;
+
+    setCancelingOrderId(order.id);
+    try {
+      if (demoMode === "customer") {
+        const cancelledAt = Date.now();
+        const nextOrders = orders.map((item) => item.id === order.id ? { ...item, status: "cancelled" as const, cancelledAt } : item);
+        setOrders(nextOrders);
+        localStorage.setItem("ckb-demo-orders", JSON.stringify(nextOrders));
+      } else if (db && currentUser) {
+        await updateDoc(doc(db, "orders", order.id), { status: "cancelled", cancelledAt: serverTimestamp() });
+      } else {
+        return;
+      }
+      setNotice("Your order has been cancelled.");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "We couldn’t cancel that order. Please try again.");
+    } finally {
+      setCancelingOrderId(null);
+    }
+  }
+
   async function logout() {
     if (auth && currentUser) await signOut(auth);
     setCurrentUser(null);
@@ -535,14 +581,14 @@ export default function HomePage() {
 
       {activeTab === "orders" && signedIn && !canManage && <section className="dashboard-section">
         <div className="dashboard-heading"><div><span className="eyebrow"><span className="eyebrow-line" /> YOUR CKB TABLE</span><h1>My orders<span className="heading-period">.</span></h1><p>Every good gathering starts with a plan.</p></div><button className="back-menu" onClick={() => setActiveTab("shop")}><ArrowLeft size={16} /> Back to menu</button></div>
-        {myOrders.length === 0 ? <div className="empty-state"><span className="empty-icon"><ShoppingBag /></span><h2>Your table is still open.</h2><p>Once you place an order, we’ll keep all the pickup details here.</p><button className="hero-cta" onClick={() => setActiveTab("shop")}>Browse the menu <ArrowRight size={16} /></button></div> : <div className="customer-order-list">{myOrders.map((order) => <article className="customer-order" key={order.id}><div className="order-thumb" style={{ backgroundImage: `url("${order.imageUrl}")` }} /><div className="customer-order-copy"><div className="customer-order-top"><h2>{order.productName}</h2><span className={`status-pill ${order.status === "delivered" ? "status-done" : "status-pending"}`}>{order.status === "delivered" ? "Delivered" : "Preparing"}</span></div><p>{order.quantity} {order.quantity === 1 ? "item" : "items"} · {peso(order.total)}</p><div className="pickup-line"><CalendarDays size={15} />{formatDate(order.pickupDate)} <span>·</span><Clock3 size={15} />{formatTime(order.pickupTime)}</div></div><div className="payment-note">{order.paymentStatus === "paid" ? <><BadgeCheck size={16} /> Fully paid</> : <>Balance due <strong>{peso(order.total)}</strong></>}</div></article>)}</div>}
+        {myOrders.length === 0 ? <div className="empty-state"><span className="empty-icon"><ShoppingBag /></span><h2>Your table is still open.</h2><p>Once you place an order, we’ll keep all the pickup details here.</p><button className="hero-cta" onClick={() => setActiveTab("shop")}>Browse the menu <ArrowRight size={16} /></button></div> : <div className="customer-order-list">{myOrders.map((order) => <article className="customer-order" key={order.id}><div className="order-thumb" style={{ backgroundImage: `url("${order.imageUrl}")` }} /><div className="customer-order-copy"><div className="customer-order-top"><h2>{order.productName}</h2><span className={`status-pill ${order.status === "delivered" ? "status-done" : order.status === "cancelled" ? "status-cancelled" : "status-pending"}`}>{order.status === "delivered" ? "Delivered" : order.status === "cancelled" ? "Cancelled" : "Preparing"}</span></div><p>{order.quantity} {order.quantity === 1 ? "item" : "items"} · {peso(order.total)}</p><div className="pickup-line"><CalendarDays size={15} />{formatDate(order.pickupDate)} <span>·</span><Clock3 size={15} />{formatTime(order.pickupTime)}</div></div><div className="customer-order-actions"><div className="payment-note">{order.paymentStatus === "paid" ? <><BadgeCheck size={16} /> Fully paid</> : <>Balance due <strong>{peso(order.total)}</strong></>}</div>{canCancelOrder(order, currentTime) && <button className="cancel-order-button" onClick={() => cancelOrder(order)} disabled={cancelingOrderId === order.id}>{cancelingOrderId === order.id ? "Cancelling..." : "Cancel Order"}</button>}</div></article>)}</div>}
       </section>}
 
       {activeTab === "admin" && canManage && <section className="dashboard-section admin-section">
         <div className="dashboard-heading"><div><span className="eyebrow"><span className="eyebrow-line" /> CKB LECHON HOUSE</span><h1>Order desk<span className="heading-period">.</span></h1><p>Every detail, from kitchen to pickup.</p></div><button className="add-menu-button" onClick={() => openProductForm()}><Plus size={16} /> Add menu item</button></div>
-        <div className="admin-metrics"><div><span>ALL ORDERS</span><strong>{orders.length.toString().padStart(2, "0")}</strong><PackageCheck size={17} /></div><div><span>NEEDS PAYMENT</span><strong>{orders.filter((item) => item.paymentStatus === "due").length.toString().padStart(2, "0")}</strong><CircleHelp size={17} /></div><div><span>READY TO PICK UP</span><strong>{orders.filter((item) => item.status === "pending").length.toString().padStart(2, "0")}</strong><Clock3 size={17} /></div></div>
+        <div className="admin-metrics"><div><span>ALL ORDERS</span><strong>{orders.length.toString().padStart(2, "0")}</strong><PackageCheck size={17} /></div><div><span>NEEDS PAYMENT</span><strong>{orders.filter((item) => item.paymentStatus === "due" && item.status !== "cancelled").length.toString().padStart(2, "0")}</strong><CircleHelp size={17} /></div><div><span>READY TO PICK UP</span><strong>{orders.filter((item) => item.status === "pending").length.toString().padStart(2, "0")}</strong><Clock3 size={17} /></div></div>
         <div className="order-list-heading"><div><h2>The pickup list</h2><span>Customer orders, all in one place.</span></div><select aria-label="Filter orders" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)}><option value="all">All orders</option><option value="pending">Not yet delivered</option><option value="due">Needs full payment</option></select></div>
-        {filteredOrders.length === 0 ? <div className="admin-empty">No orders just yet. When a customer books a pickup, it’ll show up here.</div> : <div className="admin-order-list">{filteredOrders.map((order) => <article className="admin-order" key={order.id}><div className="admin-customer"><span className="avatar-small">{(order.customer || "C").slice(0, 1)}</span><div><strong>{order.customer}</strong><span>{order.address}</span><a href={`tel:${order.phone}`}>{order.phone}</a></div></div><div className="admin-order-item"><div className="admin-order-photo" style={{ backgroundImage: `url("${order.imageUrl}")` }} /><div><strong>{order.productName}</strong><span>{order.quantity} × {peso(order.total)}</span></div></div><div className="admin-pickup"><span>PICKUP</span><strong>{formatDate(order.pickupDate)}</strong><span>{formatTime(order.pickupTime)}</span></div><div className="admin-balance"><span>BALANCE</span><strong>{order.paymentStatus === "paid" ? "₱0" : peso(order.total)}</strong><button className={order.paymentStatus === "paid" ? "payment-toggle paid" : "payment-toggle"} onClick={() => updateOrder(order.id, { paymentStatus: order.paymentStatus === "paid" ? "due" : "paid" })}>{order.paymentStatus === "paid" ? "Fully paid" : "Needs payment"}</button></div><button className={order.status === "delivered" ? "delivered-toggle delivered" : "delivered-toggle"} onClick={() => updateOrder(order.id, { status: order.status === "delivered" ? "pending" : "delivered" })}>{order.status === "delivered" ? <><Check size={15} /> Delivered</> : "Mark delivered"}</button></article>)}</div>}
+        {filteredOrders.length === 0 ? <div className="admin-empty">No orders just yet. When a customer books a pickup, it’ll show up here.</div> : <div className="admin-order-list">{filteredOrders.map((order) => <article className="admin-order" key={order.id}><div className="admin-customer"><span className="avatar-small">{(order.customer || "C").slice(0, 1)}</span><div><strong>{order.customer}</strong><span>{order.address}</span><a href={`tel:${order.phone}`}>{order.phone}</a></div></div><div className="admin-order-item"><div className="admin-order-photo" style={{ backgroundImage: `url("${order.imageUrl}")` }} /><div><strong>{order.productName}</strong><span>{order.quantity} × {peso(order.total)}</span></div></div><div className="admin-pickup"><span>PICKUP</span><strong>{formatDate(order.pickupDate)}</strong><span>{formatTime(order.pickupTime)}</span></div><div className="admin-balance"><span>BALANCE</span><strong>{order.paymentStatus === "paid" ? "₱0" : peso(order.total)}</strong><button className={order.paymentStatus === "paid" ? "payment-toggle paid" : "payment-toggle"} onClick={() => updateOrder(order.id, { paymentStatus: order.paymentStatus === "paid" ? "due" : "paid" })}>{order.paymentStatus === "paid" ? "Fully paid" : "Needs payment"}</button></div>{order.status === "cancelled" ? <button className="delivered-toggle cancelled" disabled>Cancelled</button> : <button className={order.status === "delivered" ? "delivered-toggle delivered" : "delivered-toggle"} onClick={() => updateOrder(order.id, { status: order.status === "delivered" ? "pending" : "delivered" })}>{order.status === "delivered" ? <><Check size={15} /> Delivered</> : "Mark delivered"}</button>}</article>)}</div>}
         <div className="admin-products-heading"><div><h2>Menu items</h2><span>Manage what customers can order.</span></div></div>
         <div className="admin-products-list">{products.map((product) => <article key={product.id}><div className="admin-product-photo" style={{ backgroundImage: `url("${product.imageUrl}")` }} /><div className="admin-product-copy"><strong>{product.name}</strong><span>{peso(product.price)} · {product.saleType === "promo" ? `Promo${product.promoFrom ? ` from ${formatDate(product.promoFrom)}` : ""}` : "Regular"}</span></div><button className="edit-product" onClick={() => openProductForm(product)}>Edit</button><button className="remove-product" onClick={() => archiveProduct(product)}>Remove</button></article>)}</div>
       </section>}

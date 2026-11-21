@@ -115,12 +115,17 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .status-pill { padding: 5px 8px; border-radius: 8px; font-size: 9px; font-weight: 700; }
 .status-pending { color: #99501c; background: #fff0d7; }
 .status-done { color: #45734e; background: #e7f2e7; }
+.status-cancelled { color: #9b392a; background: #fce6e0; }
 .customer-order-copy > p { margin: 7px 0 9px; color: #755e56; font-size: 11px; }
 .pickup-line { display: flex; align-items: center; gap: 6px; color: #765a50; font-size: 10px; }
 .pickup-line svg { color: var(--coral); }
+.customer-order-actions { display: flex; flex-direction: column; align-items: flex-end; gap: 10px; }
 .payment-note { min-width: 125px; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; color: #8c604f; font-size: 10px; }
 .payment-note svg { color: var(--green); }
 .payment-note strong { color: var(--ink); font-size: 13px; }
+.cancel-order-button { min-height: 30px; padding: 0 10px; border: 1px solid #efc5b7; border-radius: 9px; color: #9b392a; background: #fff4ef; font-size: 10px; font-weight: 700; }
+.cancel-order-button:hover { background: #ffe9e0; }
+.cancel-order-button:disabled { cursor: progress; opacity: .65; }
 
 .admin-section { max-width: 1300px; }
 .admin-metrics { margin: 0 0 42px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
@@ -151,6 +156,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .payment-toggle.paid { color: var(--green); }
 .delivered-toggle { min-height: 32px; padding: 0 9px; border: 1px solid #f4d0bd; border-radius: 9px; color: #9b472c; background: #fff0e8; font-size: 9px; font-weight: 700; white-space: nowrap; }
 .delivered-toggle.delivered { display: inline-flex; align-items: center; gap: 4px; border-color: #d9e8d9; color: #4e7656; background: #eaf3e9; }
+.delivered-toggle.cancelled { cursor: default; border-color: #f0d4cc; color: #9b392a; background: #fce6e0; }
 .admin-empty { padding: 30px; border: 1px dashed #e6cabe; border-radius: 12px; color: var(--muted); font-size: 12px; text-align: center; }
 .admin-products-heading { margin-top: 39px; }
 .admin-products-list { display: grid; gap: 7px; }
@@ -302,8 +308,10 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   .customer-order-copy > p { margin: 5px 0 6px; font-size: 9px; }
   .pickup-line { flex-wrap: wrap; gap: 4px; font-size: 8px; }
   .pickup-line svg { width: 12px; }
+  .customer-order-actions { grid-column: 2; flex-direction: row; align-items: center; justify-content: flex-start; flex-wrap: wrap; gap: 8px; }
   .payment-note { grid-column: 2; min-width: 0; flex-direction: row; align-items: center; justify-content: flex-start; gap: 5px; font-size: 8px; }
   .payment-note strong { font-size: 9px; }
+  .cancel-order-button { min-height: 27px; padding: 0 8px; font-size: 8px; }
   .admin-metrics { margin-bottom: 27px; gap: 7px; }
   .admin-metrics > div { min-height: 75px; padding: 10px 8px; border-radius: 10px; }
   .admin-metrics span { max-width: 80px; font-size: 7px; line-height: 1.3; }
