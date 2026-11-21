@@ -335,15 +335,15 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   .empty-state { min-height: 290px; padding: 37px 9px; }
   .empty-state h2 { font-size: 23px; }
   .empty-state p { max-width: 270px; font-size: 10px; line-height: 1.6; }
-  .customer-order { padding: 9px; grid-template-columns: 66px minmax(0, 1fr); gap: 10px; }
+  .customer-order { padding: 9px; grid-template-columns: 66px minmax(0, 1fr) max-content; gap: 10px 8px; }
   .order-thumb { width: 66px; height: 72px; }
   .customer-order-top { align-items: flex-start; justify-content: space-between; gap: 5px; }
   .customer-order-top h2 { font-size: 15px; }
   .customer-order-copy > p { margin: 5px 0 6px; font-size: 9px; }
   .pickup-line { flex-wrap: wrap; gap: 4px; font-size: 8px; }
   .pickup-line svg { width: 12px; }
-  .customer-order-actions { grid-column: 2; flex-direction: column; align-items: flex-start; justify-content: flex-start; gap: 7px; }
-  .payment-note { grid-column: 2; min-width: 0; flex-direction: row; align-items: center; justify-content: flex-start; gap: 5px; font-size: 8px; }
+  .customer-order-actions { grid-column: 3; grid-row: 1; flex-direction: column; align-items: flex-end; justify-content: flex-start; gap: 7px; }
+  .payment-note { min-width: 0; flex-direction: row; align-items: center; justify-content: flex-end; gap: 5px; font-size: 8px; }
   .payment-note strong { font-size: 9px; }
   .downpayment-qr-button { min-height: 27px; padding: 0 8px; font-size: 8px; }
   .cancel-order-button { min-height: 27px; padding: 0 8px; font-size: 8px; }
