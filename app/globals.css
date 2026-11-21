@@ -23,9 +23,9 @@ button { color: inherit; cursor: pointer; }
 button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, a:focus-visible { outline: 3px solid #ff960d80; outline-offset: 3px; }
 ::selection { color: var(--ink); background: var(--rose); }
 
-.app-shell { min-height: 100vh; display: flex; flex-direction: column; overflow: hidden; background-image: radial-gradient(#e9aa8d30 .8px, transparent .8px); background-size: 24px 24px; }
+.app-shell { min-height: 100vh; overflow: hidden; background-image: radial-gradient(#e9aa8d30 .8px, transparent .8px); background-size: 24px 24px; }
 .demo-ribbon { min-height: 29px; padding: 6px 16px; display: flex; justify-content: center; align-items: center; gap: 7px; color: #612414; background: var(--rose); font-size: 11px; font-weight: 700; letter-spacing: 0; }
-.topbar { max-width: 1440px; height: 82px; margin: 0 auto; padding: 0 7.2%; display: flex; align-items: center; justify-content: flex-start; gap: 24px; }
+.topbar { max-width: 1440px; height: 82px; margin: auto; padding: 0 7.2%; display: flex; align-items: center; justify-content: flex-start; gap: 24px; }
 .brand-lockup { padding: 0; display: flex; align-items: center; gap: 11px; border: 0; background: transparent; text-align: left; }
 .brand-stamp { width: 43px; height: 43px; display: inline-flex; align-items: center; justify-content: center; border-radius: 15px 15px 17px 12px; color: white; background: var(--coral); box-shadow: inset 3px 4px 6px #ffffff72, inset -4px -4px 8px #d94d2b63, 3px 4px 9px #913a261c; font-family: var(--serif); font-size: 17px; font-weight: 700; transform: rotate(-4deg); }
 .brand-icon { background: var(--coral) url("/ckb-icon-logo.png") center / 76% no-repeat; }
@@ -90,7 +90,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .order-button:hover { background: var(--tomato); }
 .empty-menu { grid-column: 1 / -1; padding: 28px; color: var(--muted); text-align: center; }
 
-.dashboard-section { max-width: 1200px; min-height: 64vh; margin: 0 auto; padding: 58px 6% 90px; }
+.dashboard-section { max-width: 1200px; min-height: 64vh; margin: auto; padding: 58px 6% 90px; }
 .dashboard-heading { margin-bottom: 34px; display: flex; align-items: flex-end; justify-content: space-between; gap: 15px; }
 .dashboard-heading h1 { margin: 13px 0 5px; font-size: 48px; }
 .heading-period { color: var(--tomato); }
@@ -191,7 +191,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .edit-product, .remove-product { padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; background: #fff9f5; font-size: 10px; font-weight: 600; }
 .remove-product { border-color: #f0d4cf; color: #a34535; }
 
-.site-footer { max-width: 1200px; min-height: 90px; margin: auto auto 0; padding: 20px 6%; display: flex; align-items: center; justify-content: space-between; gap: 16px; border-top: 1px solid #efdfd6; }
+.site-footer { max-width: 1200px; min-height: 90px; margin: auto; padding: 20px 6%; display: flex; align-items: center; justify-content: space-between; gap: 16px; border-top: 1px solid #efdfd6; }
 .footer-brand { display: flex; align-items: center; gap: 10px; }
 .footer-brand .brand-stamp { width: 35px; height: 35px; border-radius: 12px; font-size: 14px; }
 .footer-brand strong { font-family: var(--serif); font-size: 13px; }
