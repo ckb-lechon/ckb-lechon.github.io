@@ -23,6 +23,7 @@ import {
 import { generateReactHelpers } from "@uploadthing/react";
 import type { AnyFileRoute } from "uploadthing/types";
 import {
+  Download,
   ArrowDownRight,
   ArrowLeft,
   ArrowRight,
@@ -44,6 +45,7 @@ import {
   Sparkles,
   X,
 } from "lucide-react";
+import Image from "next/image";
 import { useEffect, useState } from "react";
 import { auth, db, firebaseEnabled } from "@/lib/firebase";
 
@@ -179,6 +181,7 @@ export default function HomePage() {
   const [postAuthTab, setPostAuthTab] = useState<Tab | null>(null);
   const [orderProduct, setOrderProduct] = useState<Product | null>(null);
   const [cancelOrderConfirmation, setCancelOrderConfirmation] = useState<CustomerOrder | null>(null);
+  const [downpaymentQrOpen, setDownpaymentQrOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
@@ -683,7 +686,7 @@ export default function HomePage() {
 
       {activeTab === "orders" && signedIn && !canManage && <section className="dashboard-section">
         <div className="dashboard-heading"><div><span className="eyebrow"><span className="eyebrow-line" /> YOUR CKB TABLE</span><h1>My orders<span className="heading-period">.</span></h1><p>Every good gathering starts with a plan.</p></div><button className="back-menu" onClick={() => setActiveTab("shop")}><ArrowLeft size={16} /> Back to menu</button></div>
-        {myOrders.length === 0 ? <div className="empty-state"><span className="empty-icon"><ShoppingBag /></span><h2>Your table is still open.</h2><p>Once you place an order, we’ll keep all the pickup details here.</p><button className="hero-cta" onClick={() => setActiveTab("shop")}>Browse the menu <ArrowRight size={16} /></button></div> : <div className="customer-order-list">{myOrders.map((order) => <article className="customer-order" key={order.id}><div className="order-thumb" style={{ backgroundImage: `url("${order.imageUrl}")` }} /><div className="customer-order-copy"><div className="customer-order-top"><h2>{order.productName}</h2><span className={`status-pill ${order.status === "delivered" ? "status-done" : order.status === "cancelled" ? "status-cancelled" : "status-pending"}`}>{order.status === "delivered" ? "Delivered" : order.status === "cancelled" ? "Cancelled" : "Preparing"}</span></div><p>{order.quantity} {order.quantity === 1 ? "item" : "items"} · {peso(order.total)}</p><div className="pickup-line"><CalendarDays size={15} />{formatDate(order.pickupDate)} <span>·</span><Clock3 size={15} />{formatTime(order.pickupTime)}</div></div><div className="customer-order-actions"><div className="payment-note">{orderBalance(order) === 0 ? <><BadgeCheck size={16} /> Fully paid</> : <>Balance due <strong>{peso(orderBalance(order))}</strong></>}</div>{canCancelOrder(order, currentTime) && <button className="cancel-order-button" onClick={() => requestOrderCancellation(order)} disabled={cancelingOrderId === order.id}>{cancelingOrderId === order.id ? "Cancelling..." : "Cancel Order"}</button>}</div></article>)}</div>}
+        {myOrders.length === 0 ? <div className="empty-state"><span className="empty-icon"><ShoppingBag /></span><h2>Your table is still open.</h2><p>Once you place an order, we’ll keep all the pickup details here.</p><button className="hero-cta" onClick={() => setActiveTab("shop")}>Browse the menu <ArrowRight size={16} /></button></div> : <div className="customer-order-list">{myOrders.map((order) => <article className="customer-order" key={order.id}><div className="order-thumb" style={{ backgroundImage: `url("${order.imageUrl}")` }} /><div className="customer-order-copy"><div className="customer-order-top"><h2>{order.productName}</h2></div><p>{order.quantity} {order.quantity === 1 ? "item" : "items"} · {peso(order.total)}</p><div className="pickup-line"><CalendarDays size={15} />{formatDate(order.pickupDate)} <span>·</span><Clock3 size={15} />{formatTime(order.pickupTime)}</div></div><div className="customer-order-actions"><div className="payment-note">{orderBalance(order) === 0 ? <><BadgeCheck size={16} /> Fully paid</> : <>Balance due <strong>{peso(orderBalance(order))}</strong></>}</div><button className="downpayment-qr-button" onClick={() => setDownpaymentQrOpen(true)}>Downpayment QR</button>{canCancelOrder(order, currentTime) && <button className="cancel-order-button" onClick={() => requestOrderCancellation(order)} disabled={cancelingOrderId === order.id}>{cancelingOrderId === order.id ? "Cancelling..." : "Cancel Order"}</button>}</div></article>)}</div>}
       </section>}
 
       {activeTab === "admin" && canManage && <section className="dashboard-section admin-section">
@@ -772,6 +775,8 @@ export default function HomePage() {
           </section>
         </div>
       )}
+
+      {downpaymentQrOpen && <div className="overlay qr-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) setDownpaymentQrOpen(false); }} onKeyDown={(event) => { if (event.key === "Escape") setDownpaymentQrOpen(false); }}><section className="dialog qr-dialog" role="dialog" aria-modal="true" aria-labelledby="downpayment-qr-title" aria-describedby="downpayment-qr-description"><button className="dialog-close" autoFocus onClick={() => setDownpaymentQrOpen(false)} aria-label="Close QR code"><X size={19} /></button><div className="dialog-kicker">DOWNPAYMENT</div><h2 id="downpayment-qr-title">Scan to pay.</h2><p id="downpayment-qr-description">Scan this QR code with your banking or payment app.</p><Image className="downpayment-qr-image" src="/downpayment-qr.jpg" alt="Downpayment QR code" width={1284} height={1930} priority /><a className="submit-button qr-save-button" href="/downpayment-qr.jpg" download="downpayment-qr.jpg"><span>Save this QR</span><Download size={17} /></a></section></div>}
 
       {cancelOrderConfirmation && <div className="overlay confirmation-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) setCancelOrderConfirmation(null); }} onKeyDown={(event) => { if (event.key === "Escape") setCancelOrderConfirmation(null); }}><section className="dialog confirmation-dialog" role="alertdialog" aria-modal="true" aria-labelledby="cancel-order-title" aria-describedby="cancel-order-description"><span className="confirmation-icon"><CircleAlert size={21} /></span><div className="dialog-kicker">YOUR CKB TABLE</div><h2 id="cancel-order-title">Cancel this order?</h2><p id="cancel-order-description">You’re cancelling <strong>{cancelOrderConfirmation.productName}</strong>. This can’t be undone.</p><div className="confirmation-order-summary"><span>{formatDate(cancelOrderConfirmation.pickupDate)} · {formatTime(cancelOrderConfirmation.pickupTime)}</span><strong>{peso(cancelOrderConfirmation.total)}</strong></div><div className="confirmation-actions"><button className="confirmation-keep" autoFocus onClick={() => setCancelOrderConfirmation(null)}>Keep order</button><button className="confirmation-cancel" onClick={confirmOrderCancellation} disabled={cancelingOrderId === cancelOrderConfirmation.id}>{cancelingOrderId === cancelOrderConfirmation.id ? "Cancelling…" : "Cancel order"}</button></div></section></div>}
 

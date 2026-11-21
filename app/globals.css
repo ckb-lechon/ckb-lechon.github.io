@@ -106,10 +106,6 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .order-thumb { width: 94px; height: 86px; border-radius: 10px; background-position: center; background-size: cover; }
 .customer-order-top { display: flex; align-items: center; gap: 12px; }
 .customer-order-top h2 { margin: 0; font-family: var(--serif); font-size: 19px; font-weight: 600; }
-.status-pill { padding: 5px 8px; border-radius: 8px; font-size: 9px; font-weight: 700; }
-.status-pending { color: #99501c; background: #fff0d7; }
-.status-done { color: #45734e; background: #e7f2e7; }
-.status-cancelled { color: #9b392a; background: #fce6e0; }
 .customer-order-copy > p { margin: 7px 0 9px; color: #755e56; font-size: 11px; }
 .pickup-line { display: flex; align-items: center; gap: 6px; color: #765a50; font-size: 10px; }
 .pickup-line svg { color: var(--coral); }
@@ -117,6 +113,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .payment-note { min-width: 125px; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; color: #8c604f; font-size: 10px; }
 .payment-note svg { color: var(--green); }
 .payment-note strong { color: var(--ink); font-size: 13px; }
+.downpayment-qr-button { min-height: 32px; padding: 0 10px; border: 1px solid #efd1c3; border-radius: 9px; color: #8b3925; background: #fff0e8; font-size: 10px; font-weight: 700; white-space: nowrap; }
+.downpayment-qr-button:hover { background: #ffe6da; }
 .cancel-order-button { min-height: 30px; padding: 0 10px; border: 1px solid #efc5b7; border-radius: 9px; color: #9b392a; background: #fff4ef; font-size: 10px; font-weight: 700; }
 .cancel-order-button:hover { background: #ffe9e0; }
 .cancel-order-button:disabled { cursor: progress; opacity: .65; }
@@ -232,6 +230,12 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .confirmation-cancel { border: 1px solid #d5442c; color: white; background: var(--tomato); box-shadow: inset 1px 2px 4px #ff9878; }
 .confirmation-cancel:hover { background: #df3600; }
 .confirmation-cancel:disabled { cursor: progress; opacity: .65; }
+.qr-dialog { width: min(100%, 420px); padding: 26px; display: flex; flex-direction: column; align-items: center; }
+.qr-dialog .dialog-kicker { text-align: center; }
+.qr-dialog h2 { margin: 9px 0 5px; text-align: center; }
+.qr-dialog > p { max-width: 290px; margin: 0 0 15px; text-align: center; }
+.downpayment-qr-image { display: block; width: min(100%, 300px); max-height: min(48vh, 430px); border: 1px solid #ead8cf; border-radius: 11px; background: white; object-fit: contain; }
+.qr-save-button { width: 100%; margin-top: 15px; text-decoration: none; }
 .auth-form { display: flex; flex-direction: column; gap: 12px; }
 .auth-form label { display: flex; flex-direction: column; gap: 5px; color: #76594e; font-size: 10px; font-weight: 700; }
 .auth-form input, .auth-form select, .auth-form textarea { width: 100%; min-height: 41px; padding: 9px 11px; border: 1px solid #ead8cf; border-radius: 9px; color: var(--ink); background: #fffdfa; font-size: 12px; font-weight: 500; }
@@ -335,14 +339,17 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   .order-thumb { width: 66px; height: 72px; }
   .customer-order-top { align-items: flex-start; justify-content: space-between; gap: 5px; }
   .customer-order-top h2 { font-size: 15px; }
-  .status-pill { padding: 4px 5px; font-size: 7px; white-space: nowrap; }
   .customer-order-copy > p { margin: 5px 0 6px; font-size: 9px; }
   .pickup-line { flex-wrap: wrap; gap: 4px; font-size: 8px; }
   .pickup-line svg { width: 12px; }
-  .customer-order-actions { grid-column: 2; flex-direction: row; align-items: center; justify-content: flex-start; flex-wrap: wrap; gap: 8px; }
+  .customer-order-actions { grid-column: 2; flex-direction: column; align-items: flex-start; justify-content: flex-start; gap: 7px; }
   .payment-note { grid-column: 2; min-width: 0; flex-direction: row; align-items: center; justify-content: flex-start; gap: 5px; font-size: 8px; }
   .payment-note strong { font-size: 9px; }
+  .downpayment-qr-button { min-height: 27px; padding: 0 8px; font-size: 8px; }
   .cancel-order-button { min-height: 27px; padding: 0 8px; font-size: 8px; }
+  .qr-dialog { padding: 24px 20px; }
+  .downpayment-qr-image { max-height: 42vh; }
+  .qr-save-button { margin-top: 12px; }
   .admin-metrics { margin-bottom: 27px; gap: 7px; }
   .admin-calendar-layout { margin-bottom: 27px; grid-template-columns: minmax(0, 1fr); gap: 12px; }
   .admin-calendar-card, .admin-selected-date { padding: 13px; border-radius: 12px; }
