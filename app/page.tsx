@@ -600,7 +600,7 @@ export default function HomePage() {
         </section>
 
         <section className="gathering-strip">
-          <div className="strip-mark"><Flame size={20} /></div><div><span>GOOD FOOD, GOOD COMPANY</span><strong>Make room at the table.</strong></div><button onClick={() => document.getElementById("menu")?.scrollIntoView({ behavior: "smooth" })}>Explore menu <ArrowRight size={16} /></button>
+          <div className="strip-mark"><Flame size={20} /></div><button onClick={() => document.getElementById("menu")?.scrollIntoView({ behavior: "smooth" })}>Explore menu <ArrowRight size={16} /></button>
         </section>
       </>}
 
