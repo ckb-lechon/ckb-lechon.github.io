@@ -23,9 +23,9 @@ button { color: inherit; cursor: pointer; }
 button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, a:focus-visible { outline: 3px solid #ff960d80; outline-offset: 3px; }
 ::selection { color: var(--ink); background: var(--rose); }
 
-.app-shell { min-height: 100vh; overflow: hidden; background-image: radial-gradient(#e9aa8d30 .8px, transparent .8px); background-size: 24px 24px; }
+.app-shell { min-height: 100vh; overflow-x: clip; background-image: radial-gradient(#e9aa8d30 .8px, transparent .8px); background-size: 24px 24px; }
 .demo-ribbon { min-height: 29px; padding: 6px 16px; display: flex; justify-content: center; align-items: center; gap: 7px; color: #612414; background: var(--rose); font-size: 11px; font-weight: 700; letter-spacing: 0; }
-.topbar { max-width: 1440px; height: 82px; margin: auto; padding: 0 7.2%; display: flex; align-items: center; justify-content: flex-start; gap: 24px; }
+.topbar { width: 100%; height: 82px; position: sticky; top: 0; z-index: 15; margin: auto; padding: 0 max(7.2%, calc((100% - 1230px) / 2)); display: flex; align-items: center; justify-content: flex-start; gap: 24px; border-bottom: 1px solid #f0dfd7b8; background: #fffaf6ed; box-shadow: 0 4px 15px #6b38200d; backdrop-filter: blur(14px); }
 .brand-lockup { padding: 0; display: flex; align-items: center; gap: 11px; border: 0; background: transparent; text-align: left; }
 .brand-stamp { width: 43px; height: 43px; display: inline-flex; align-items: center; justify-content: center; border-radius: 15px 15px 17px 12px; color: white; background: var(--coral); box-shadow: inset 3px 4px 6px #ffffff72, inset -4px -4px 8px #d94d2b63, 3px 4px 9px #913a261c; font-family: var(--serif); font-size: 17px; font-weight: 700; transform: rotate(-4deg); }
 .brand-icon { background: var(--coral) url("/ckb-icon-logo.png") center / 76% no-repeat; }

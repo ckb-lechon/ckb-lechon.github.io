@@ -187,6 +187,7 @@ export default function HomePage() {
   const [postAuthTab, setPostAuthTab] = useState<Tab | null>(null);
   const [orderProduct, setOrderProduct] = useState<Product | null>(null);
   const [cancelOrderConfirmation, setCancelOrderConfirmation] = useState<CustomerOrder | null>(null);
+  const [logoutConfirmationOpen, setLogoutConfirmationOpen] = useState(false);
   const [downpaymentQrOpen, setDownpaymentQrOpen] = useState(false);
   const [locationMapOpen, setLocationMapOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
@@ -549,7 +550,12 @@ export default function HomePage() {
     setDemoMode(null);
     setAdmin(false);
     setActiveTab("shop");
+    setLogoutConfirmationOpen(false);
     setNotice("You're signed out.");
+  }
+
+  function requestLogout() {
+    setLogoutConfirmationOpen(true);
   }
 
   function enterDemo(role: "customer" | "admin") {
@@ -660,7 +666,7 @@ export default function HomePage() {
           {!signedIn ? <button className="sign-in-button" onClick={() => showSignIn("login")}>Sign in <ArrowRight size={16} /></button> : <>
             <div className="profile-chip"><span className="profile-dot"><UserRound size={15} aria-hidden="true" /></span><span>{profile.firstName || "Account"}</span></div>
             <button className="mobile-menu" onClick={() => canManage ? setActiveTab("admin") : requestOrders()} aria-label={canManage ? "Order List" : "My Orders"} aria-current={activeTab === (canManage ? "admin" : "orders") ? "page" : undefined}>{canManage ? <List size={19} /> : <ShoppingBag size={19} />}</button>
-            <button className="logout-button" onClick={logout} aria-label="Log out" title="Log out"><LogOut size={16} /><span>Log out</span></button>
+            <button className="logout-button" onClick={requestLogout} aria-label="Log out" title="Log out"><LogOut size={16} /><span>Log out</span></button>
           </>}
         </div>
       </header>
@@ -748,7 +754,7 @@ export default function HomePage() {
 
       {activeTab !== "orders" && <footer className="site-footer"><div className="footer-brand"><span className="brand-stamp brand-icon" aria-hidden="true" /><div><strong>CK Bless Lechon House</strong><span>Located at Purok-11, Obrero, Butuan City 8600</span></div></div><div className="footer-socials"><a className="social-link" href="https://www.facebook.com/LeAndrei.Yang7" target="_blank" rel="noreferrer" aria-label="Facebook"><Facebook size={17} /></a><button className="social-link" onClick={() => setLocationMapOpen(true)} aria-label="Open location map" title="View location"><MapPin size={17} /></button></div></footer>}
 
-      {demoMode && <div className="demo-role-switch"><span>PREVIEW AS</span><button className={demoMode === "customer" ? "selected" : ""} onClick={() => enterDemo("customer")}>Customer</button><button className={demoMode === "admin" ? "selected" : ""} onClick={() => enterDemo("admin")}>Staff</button><button onClick={logout} title="Exit preview"><X size={15} /></button></div>}
+      {demoMode && <div className="demo-role-switch"><span>PREVIEW AS</span><button className={demoMode === "customer" ? "selected" : ""} onClick={() => enterDemo("customer")}>Customer</button><button className={demoMode === "admin" ? "selected" : ""} onClick={() => enterDemo("admin")}>Staff</button><button onClick={requestLogout} title="Exit preview"><X size={15} /></button></div>}
 
       {notice && <div className="toast" role="status"><Check size={16} />{notice}<button onClick={() => setNotice("")} aria-label="Dismiss"><X size={15} /></button></div>}
 
@@ -806,6 +812,8 @@ export default function HomePage() {
       {locationMapOpen && <div className="overlay map-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) setLocationMapOpen(false); }} onKeyDown={(event) => { if (event.key === "Escape") setLocationMapOpen(false); }}><section className="dialog map-dialog" role="dialog" aria-modal="true" aria-labelledby="location-map-title" aria-describedby="location-map-description"><button className="dialog-close" autoFocus onClick={() => setLocationMapOpen(false)} aria-label="Close location map"><X size={19} /></button><div className="dialog-kicker">CKB LECHON HOUSE</div><h2 id="location-map-title">Find us.</h2><p id="location-map-description">Located at Purok-11, Obrero, Butuan City 8600.</p><iframe className="location-map-frame" title="Map to CKB Lechon House" src="https://www.google.com/maps?q=8.964564313632456%2C125.53672241133174&z=17&output=embed" loading="lazy" referrerPolicy="no-referrer-when-downgrade" /><a className="map-external-link" href="https://www.google.com/maps?q=8.964564313632456%2C125.53672241133174" target="_blank" rel="noreferrer">Open in Google Maps <ArrowRight size={14} /></a></section></div>}
 
       {cancelOrderConfirmation && <div className="overlay confirmation-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) setCancelOrderConfirmation(null); }} onKeyDown={(event) => { if (event.key === "Escape") setCancelOrderConfirmation(null); }}><section className="dialog confirmation-dialog" role="alertdialog" aria-modal="true" aria-labelledby="cancel-order-title" aria-describedby="cancel-order-description"><span className="confirmation-icon"><CircleAlert size={21} /></span><div className="dialog-kicker">YOUR CKB TABLE</div><h2 id="cancel-order-title">Cancel this order?</h2><p id="cancel-order-description">You’re cancelling <strong>{cancelOrderConfirmation.productName}</strong>. This can’t be undone.</p><div className="confirmation-order-summary"><span>{formatDate(cancelOrderConfirmation.pickupDate)} · {formatTime(cancelOrderConfirmation.pickupTime)}</span><strong>{peso(cancelOrderConfirmation.total)}</strong></div><div className="confirmation-actions"><button className="confirmation-keep" autoFocus onClick={() => setCancelOrderConfirmation(null)}>Keep order</button><button className="confirmation-cancel" onClick={confirmOrderCancellation} disabled={cancelingOrderId === cancelOrderConfirmation.id}>{cancelingOrderId === cancelOrderConfirmation.id ? "Cancelling…" : "Cancel order"}</button></div></section></div>}
+
+      {logoutConfirmationOpen && <div className="overlay confirmation-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) setLogoutConfirmationOpen(false); }} onKeyDown={(event) => { if (event.key === "Escape") setLogoutConfirmationOpen(false); }}><section className="dialog confirmation-dialog" role="alertdialog" aria-modal="true" aria-labelledby="logout-title" aria-describedby="logout-description"><span className="confirmation-icon"><LogOut size={20} /></span><div className="dialog-kicker">CKB LECHON HOUSE</div><h2 id="logout-title">Logout Confirmation</h2><p id="logout-description">Are you sure you want to end your session?</p><div className="confirmation-actions"><button className="confirmation-keep" autoFocus onClick={() => setLogoutConfirmationOpen(false)}>Stay signed in</button><button className="confirmation-cancel" onClick={logout}>Log out</button></div></section></div>}
 
       {orderProduct && <div className="overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) setOrderProduct(null); }}><section className="dialog order-dialog" role="dialog" aria-modal="true" aria-labelledby="pickup-title"><button className="dialog-close" onClick={() => setOrderProduct(null)} aria-label="Close"><X size={19} /></button><div className="order-dialog-photo" style={{ backgroundImage: `url("${orderProduct.imageUrl}")` }} /><div className="dialog-kicker">MAKE IT A GATHERING</div><h2 id="pickup-title">Save your spot.</h2><p className="order-summary"><strong>{orderProduct.name}</strong><span>{peso(orderProduct.price * Math.max(1, orderQuantity))}</span></p><form className="auth-form" onSubmit={placeOrder}><label>Quantity<input type="number" min={1} max={99} step={1} required value={orderQuantity} onChange={(event) => setOrderQuantity(event.target.value === "" ? 0 : Number(event.target.value))} /></label><label>Pickup date<input required type="date" min={today} value={pickupDate} onChange={(event) => setPickupDate(event.target.value)} /></label><label>Pickup time<input required type="time" min="09:00" max="18:00" step={60} value={pickupTime} onChange={(event) => setPickupTime(event.target.value)} /></label>{!signedIn && <div className="pickup-note">Sign in or try a preview to confirm your pickup.</div>}<button className="submit-button" disabled={busy}>{busy ? "Saving your pickup..." : "Confirm pickup"}<ArrowRight size={16} /></button></form></section></div>}
 
