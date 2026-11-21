@@ -453,6 +453,8 @@ export default function HomePage() {
   const filteredOrders = orders.filter((order) => dateFilter === "all" || (dateFilter === "pending" ? order.status === "pending" : order.paymentStatus === "due"));
   const canManage = Boolean(admin && (currentUser || demoMode));
   const signedIn = Boolean(currentUser || demoMode);
+  const orderOwnerId = currentUser?.uid ?? (demoMode === "customer" ? "demo-customer" : null);
+  const myOrders = orderOwnerId ? orders.filter((order) => order.userId === orderOwnerId) : [];
   const today = new Date().toISOString().slice(0, 10);
 
   return (
@@ -524,9 +526,9 @@ export default function HomePage() {
         </section>
       </>}
 
-      {activeTab === "orders" && <section className="dashboard-section">
+      {activeTab === "orders" && signedIn && !canManage && <section className="dashboard-section">
         <div className="dashboard-heading"><div><span className="eyebrow"><span className="eyebrow-line" /> YOUR CKB TABLE</span><h1>My orders<span className="heading-period">.</span></h1><p>Every good gathering starts with a plan.</p></div><button className="back-menu" onClick={() => setActiveTab("shop")}><ArrowLeft size={16} /> Back to menu</button></div>
-        {orders.length === 0 ? <div className="empty-state"><span className="empty-icon"><ShoppingBag /></span><h2>Your table is still open.</h2><p>Once you place an order, we’ll keep all the pickup details here.</p><button className="hero-cta" onClick={() => setActiveTab("shop")}>Browse the menu <ArrowRight size={16} /></button></div> : <div className="customer-order-list">{orders.map((order) => <article className="customer-order" key={order.id}><div className="order-thumb" style={{ backgroundImage: `url("${order.imageUrl}")` }} /><div className="customer-order-copy"><div className="customer-order-top"><h2>{order.productName}</h2><span className={`status-pill ${order.status === "delivered" ? "status-done" : "status-pending"}`}>{order.status === "delivered" ? "Delivered" : "Preparing"}</span></div><p>{order.quantity} item · {peso(order.total)}</p><div className="pickup-line"><CalendarDays size={15} />{formatDate(order.pickupDate)} <span>·</span><Clock3 size={15} />{formatTime(order.pickupTime)}</div></div><div className="payment-note">{order.paymentStatus === "paid" ? <><BadgeCheck size={16} /> Fully paid</> : <>Balance due <strong>{peso(order.total)}</strong></>}</div></article>)}</div>}
+        {myOrders.length === 0 ? <div className="empty-state"><span className="empty-icon"><ShoppingBag /></span><h2>Your table is still open.</h2><p>Once you place an order, we’ll keep all the pickup details here.</p><button className="hero-cta" onClick={() => setActiveTab("shop")}>Browse the menu <ArrowRight size={16} /></button></div> : <div className="customer-order-list">{myOrders.map((order) => <article className="customer-order" key={order.id}><div className="order-thumb" style={{ backgroundImage: `url("${order.imageUrl}")` }} /><div className="customer-order-copy"><div className="customer-order-top"><h2>{order.productName}</h2><span className={`status-pill ${order.status === "delivered" ? "status-done" : "status-pending"}`}>{order.status === "delivered" ? "Delivered" : "Preparing"}</span></div><p>{order.quantity} item · {peso(order.total)}</p><div className="pickup-line"><CalendarDays size={15} />{formatDate(order.pickupDate)} <span>·</span><Clock3 size={15} />{formatTime(order.pickupTime)}</div></div><div className="payment-note">{order.paymentStatus === "paid" ? <><BadgeCheck size={16} /> Fully paid</> : <>Balance due <strong>{peso(order.total)}</strong></>}</div></article>)}</div>}
       </section>}
 
       {activeTab === "admin" && canManage && <section className="dashboard-section admin-section">
