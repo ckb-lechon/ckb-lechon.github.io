@@ -36,6 +36,8 @@ import {
   CircleAlert,
   CircleHelp,
   Clock3,
+  Eye,
+  EyeOff,
   Flame,
   Facebook,
   LogOut,
@@ -191,6 +193,8 @@ export default function HomePage() {
   const [authProfile, setAuthProfile] = useState<Profile>(blankProfile);
   const [authPassword, setAuthPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [showAuthPassword, setShowAuthPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [productDraft, setProductDraft] = useState<Product | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [orderQuantity, setOrderQuantity] = useState(1);
@@ -285,6 +289,8 @@ export default function HomePage() {
     setAuthProfile(blankProfile);
     setAuthPassword("");
     setConfirmPassword("");
+    setShowAuthPassword(false);
+    setShowConfirmPassword(false);
     setAuthOpen(true);
   }
 
@@ -754,7 +760,7 @@ export default function HomePage() {
             ) : authMode === "login" ? (
               <form className="auth-form" onSubmit={signIn}>
                 <label>Email<input required type="email" autoComplete="email" placeholder="you@example.com" value={authProfile.email} onChange={(event) => setAuthProfile({ ...authProfile, email: event.target.value })} /></label>
-                <label>Password<input required type="password" autoComplete="current-password" placeholder="Your password" value={authPassword} onChange={(event) => setAuthPassword(event.target.value)} /></label>
+                <div className="password-form-field"><label htmlFor="auth-password">Password</label><div className="password-field"><input id="auth-password" required type={showAuthPassword ? "text" : "password"} autoComplete="current-password" placeholder="Your password" value={authPassword} onChange={(event) => setAuthPassword(event.target.value)} /><button type="button" className="password-toggle" onClick={() => setShowAuthPassword(!showAuthPassword)} aria-label={showAuthPassword ? "Hide password" : "Show password"} aria-pressed={showAuthPassword}>{showAuthPassword ? <EyeOff size={17} /> : <Eye size={17} />}</button></div></div>
                 {authError && <div className="form-error">{authError}</div>}
                 <button className="submit-button" disabled={busy}>{busy ? "Signing in..." : "Sign in"}<ArrowRight size={16} /></button>
                 <button type="button" className="text-button" onClick={() => showSignIn("signup")}>New to CKB? Create an account</button>
@@ -771,8 +777,8 @@ export default function HomePage() {
                 <label>Contact number<input required type="tel" autoComplete="tel" placeholder="09XX XXX XXXX" value={authProfile.phone} onChange={(event) => setAuthProfile({ ...authProfile, phone: event.target.value })} /></label>
                 <label>Email<input required type="email" autoComplete="email" placeholder="you@example.com" value={authProfile.email} onChange={(event) => setAuthProfile({ ...authProfile, email: event.target.value })} /></label>
                 <div className="name-fields">
-                  <label>Password<input required type="password" autoComplete="new-password" minLength={6} value={authPassword} onChange={(event) => setAuthPassword(event.target.value)} /></label>
-                  <label>Confirm password<input required type="password" autoComplete="new-password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} /></label>
+                  <div className="password-form-field"><label htmlFor="auth-password">Password</label><div className="password-field"><input id="auth-password" required type={showAuthPassword ? "text" : "password"} autoComplete="new-password" minLength={6} value={authPassword} onChange={(event) => setAuthPassword(event.target.value)} /><button type="button" className="password-toggle" onClick={() => setShowAuthPassword(!showAuthPassword)} aria-label={showAuthPassword ? "Hide password" : "Show password"} aria-pressed={showAuthPassword}>{showAuthPassword ? <EyeOff size={17} /> : <Eye size={17} />}</button></div></div>
+                  <div className="password-form-field"><label htmlFor="confirm-password">Confirm password</label><div className="password-field"><input id="confirm-password" required type={showConfirmPassword ? "text" : "password"} autoComplete="new-password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} /><button type="button" className="password-toggle" onClick={() => setShowConfirmPassword(!showConfirmPassword)} aria-label={showConfirmPassword ? "Hide confirm password" : "Show confirm password"} aria-pressed={showConfirmPassword}>{showConfirmPassword ? <EyeOff size={17} /> : <Eye size={17} />}</button></div></div>
                 </div>
                 {authError && <div className="form-error">{authError}</div>}
                 <button className="submit-button" disabled={busy}>{busy ? "Creating account..." : "Create account"}<ArrowRight size={16} /></button>
