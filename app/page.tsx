@@ -45,7 +45,7 @@ import { auth, db, firebaseEnabled } from "@/lib/firebase";
 const uploadThingUrl = process.env.NEXT_PUBLIC_UPLOADTHING_URL || "";
 const uploadThingConfigured = Boolean(uploadThingUrl);
 type CkbUploadRouter = { productImage: AnyFileRoute };
-const { useUploadThing } = generateReactHelpers<CkbUploadRouter>({ url: uploadThingUrl || "/api/uploadthing" });
+const { uploadFiles } = generateReactHelpers<CkbUploadRouter>({ url: uploadThingUrl || "/api/uploadthing" });
 
 type Product = {
   id: string;
@@ -171,9 +171,7 @@ export default function HomePage() {
   const [pickupDate, setPickupDate] = useState("");
   const [pickupTime, setPickupTime] = useState("");
   const [dateFilter, setDateFilter] = useState("all");
-  const { startUpload, isUploading } = useUploadThing("productImage", {
-    headers: async () => ({ Authorization: `Bearer ${await currentUser!.getIdToken()}` }),
-  });
+  const [uploadingImage, setUploadingImage] = useState(false);
 
   useEffect(() => {
     if (!firebaseEnabled || !auth || !db) return;
@@ -347,7 +345,11 @@ export default function HomePage() {
           imageUrl = URL.createObjectURL(imageFile);
         } else {
           if (!uploadThingConfigured || !currentUser) throw new Error("Product image uploads are not configured yet.");
-          const uploaded = await startUpload([imageFile]);
+          setUploadingImage(true);
+          const uploaded = await uploadFiles("productImage", {
+            files: [imageFile],
+            headers: async () => ({ Authorization: `Bearer ${await currentUser.getIdToken()}` }),
+          });
           const file = uploaded?.[0] as { serverData?: { imageUrl?: string }; ufsUrl?: string; url?: string } | undefined;
           imageUrl = file?.serverData?.imageUrl ?? file?.ufsUrl ?? file?.url ?? "";
           if (!imageUrl) throw new Error("The image uploaded, but its URL was not returned.");
@@ -372,6 +374,7 @@ export default function HomePage() {
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Unable to save this menu item.");
     } finally {
+      setUploadingImage(false);
       setBusy(false);
     }
   }
@@ -589,7 +592,7 @@ export default function HomePage() {
 
       {orderProduct && <div className="overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) setOrderProduct(null); }}><section className="dialog order-dialog" role="dialog" aria-modal="true" aria-labelledby="pickup-title"><button className="dialog-close" onClick={() => setOrderProduct(null)} aria-label="Close"><X size={19} /></button><div className="order-dialog-photo" style={{ backgroundImage: `url("${orderProduct.imageUrl}")` }} /><div className="dialog-kicker">MAKE IT A GATHERING</div><h2 id="pickup-title">Save your spot.</h2><p className="order-summary"><strong>{orderProduct.name}</strong><span>{peso(orderProduct.price)}</span></p><form className="auth-form" onSubmit={placeOrder}><label>Pickup date<input required type="date" min={today} value={pickupDate} onChange={(event) => setPickupDate(event.target.value)} /></label><label>Pickup time<select required value={pickupTime} onChange={(event) => setPickupTime(event.target.value)}><option value="">Choose a time</option>{["09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00"].map((time) => <option key={time} value={time}>{new Date(`2000-01-01T${time}`).toLocaleTimeString("en-PH", { hour: "numeric", minute: "2-digit" })}</option>)}</select></label>{!signedIn && <div className="pickup-note">Sign in or try a preview to confirm your pickup.</div>}<button className="submit-button" disabled={busy}>{busy ? "Saving your pickup..." : "Confirm pickup"}<ArrowRight size={16} /></button></form></section></div>}
 
-      {productDraft && <div className="overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) { setProductDraft(null); setEditingProduct(null); } }}><section className="dialog product-dialog" role="dialog" aria-modal="true" aria-labelledby="product-form-title"><button className="dialog-close" onClick={() => { setProductDraft(null); setEditingProduct(null); }} aria-label="Close"><X size={19} /></button><div className="dialog-kicker">THE CKB MENU</div><h2 id="product-form-title">{editingProduct ? "Edit menu item." : "Add something good."}</h2><form className="auth-form" onSubmit={saveProduct}><label>Order name<input required value={productDraft.name} onChange={(event) => setProductDraft({ ...productDraft, name: event.target.value })} /></label><label>Description<textarea required rows={3} value={productDraft.description} onChange={(event) => setProductDraft({ ...productDraft, description: event.target.value })} /></label><label>Price (₱)<input type="number" required min="0" step="0.01" value={productDraft.price || ""} onChange={(event) => setProductDraft({ ...productDraft, price: Number(event.target.value) })} /></label><label>Sale type<select value={productDraft.saleType} onChange={(event) => setProductDraft({ ...productDraft, saleType: event.target.value as Product["saleType"] })}><option value="regular">Regular</option><option value="promo">Promo</option></select></label>{productDraft.saleType === "promo" && <div className="name-fields"><label>Date from<input required type="date" value={productDraft.promoFrom || ""} onChange={(event) => setProductDraft({ ...productDraft, promoFrom: event.target.value })} /></label><label>Date to<input required type="date" value={productDraft.promoTo || ""} onChange={(event) => setProductDraft({ ...productDraft, promoTo: event.target.value })} /></label></div>}<label>Upload image<input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => setImageFile(event.target.files?.[0] ?? null)} /></label>{!uploadThingConfigured && !demoMode && <div className="pickup-note">Configure the UploadThing Worker URL to enable image uploads.</div>}<button className="submit-button" disabled={busy}>{busy ? isUploading ? "Uploading image..." : "Saving..." : editingProduct ? "Save changes" : "Add to menu"}<ArrowRight size={16} /></button></form></section></div>}
+      {productDraft && <div className="overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) { setProductDraft(null); setEditingProduct(null); } }}><section className="dialog product-dialog" role="dialog" aria-modal="true" aria-labelledby="product-form-title"><button className="dialog-close" onClick={() => { setProductDraft(null); setEditingProduct(null); }} aria-label="Close"><X size={19} /></button><div className="dialog-kicker">THE CKB MENU</div><h2 id="product-form-title">{editingProduct ? "Edit menu item." : "Add something good."}</h2><form className="auth-form" onSubmit={saveProduct}><label>Order name<input required value={productDraft.name} onChange={(event) => setProductDraft({ ...productDraft, name: event.target.value })} /></label><label>Description<textarea required rows={3} value={productDraft.description} onChange={(event) => setProductDraft({ ...productDraft, description: event.target.value })} /></label><label>Price (₱)<input type="number" required min="0" step="0.01" value={productDraft.price || ""} onChange={(event) => setProductDraft({ ...productDraft, price: Number(event.target.value) })} /></label><label>Sale type<select value={productDraft.saleType} onChange={(event) => setProductDraft({ ...productDraft, saleType: event.target.value as Product["saleType"] })}><option value="regular">Regular</option><option value="promo">Promo</option></select></label>{productDraft.saleType === "promo" && <div className="name-fields"><label>Date from<input required type="date" value={productDraft.promoFrom || ""} onChange={(event) => setProductDraft({ ...productDraft, promoFrom: event.target.value })} /></label><label>Date to<input required type="date" value={productDraft.promoTo || ""} onChange={(event) => setProductDraft({ ...productDraft, promoTo: event.target.value })} /></label></div>}<label>Upload image<input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => setImageFile(event.target.files?.[0] ?? null)} /></label>{!uploadThingConfigured && !demoMode && <div className="pickup-note">Configure the UploadThing Worker URL to enable image uploads.</div>}<button className="submit-button" disabled={busy}>{busy ? uploadingImage ? "Uploading image..." : "Saving..." : editingProduct ? "Save changes" : "Add to menu"}<ArrowRight size={16} /></button></form></section></div>}
     </main>
   );
 }
