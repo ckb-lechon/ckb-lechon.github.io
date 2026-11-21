@@ -649,7 +649,7 @@ export default function HomePage() {
         <div className="topbar-actions">
           {!signedIn ? <button className="sign-in-button" onClick={() => showSignIn("login")}>Sign in <ArrowRight size={16} /></button> : <>
             <div className="profile-chip"><span className="profile-dot">{(profile.firstName || "C").slice(0, 1)}</span><span>{profile.firstName || "Account"}</span></div>
-            <button className="mobile-menu" onClick={() => canManage ? setActiveTab(activeTab === "admin" ? "shop" : "admin") : activeTab === "shop" ? requestOrders() : setActiveTab("shop")} aria-label={canManage ? activeTab === "admin" ? "Back to Order menu" : "Order List" : activeTab === "shop" ? "My Orders" : "Back to Order menu"}>{canManage ? <List size={19} /> : <ShoppingBag size={19} />}</button>
+            <button className="mobile-menu" onClick={() => canManage ? setActiveTab("admin") : requestOrders()} aria-label={canManage ? "Order List" : "My Orders"} aria-current={activeTab === (canManage ? "admin" : "orders") ? "page" : undefined}>{canManage ? <List size={19} /> : <ShoppingBag size={19} />}</button>
             <button className="logout-button" onClick={logout} aria-label="Log out" title="Log out"><LogOut size={16} /><span>Log out</span></button>
           </>}
         </div>
