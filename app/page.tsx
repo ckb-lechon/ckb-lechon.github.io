@@ -29,6 +29,8 @@ import {
   BadgeCheck,
   CalendarDays,
   Check,
+  ChevronLeft,
+  ChevronRight,
   CircleHelp,
   Clock3,
   Flame,
@@ -115,6 +117,22 @@ function formatTime(value: string) {
   return new Date(`2000-01-01T${value}`).toLocaleTimeString("en-PH", { hour: "numeric", minute: "2-digit" });
 }
 
+function localDateKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function localMonthKey(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function formatCalendarDate(value: string, options: Intl.DateTimeFormatOptions) {
+  const [year, month, day] = value.split("-").map(Number);
+  return new Date(year, month - 1, day).toLocaleDateString("en-PH", options);
+}
+
 function canCancelOrder(order: CustomerOrder, now: number) {
   const age = now - order.createdAt;
   return order.status === "pending" && age >= 0 && age <= orderCancellationWindowMs;
@@ -148,9 +166,14 @@ export default function HomePage() {
   const [uploadingImage, setUploadingImage] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [cancelingOrderId, setCancelingOrderId] = useState<string | null>(null);
+  const [calendarMonth, setCalendarMonth] = useState("");
+  const [selectedPickupDate, setSelectedPickupDate] = useState("");
 
   useEffect(() => {
-    setCurrentTime(Date.now());
+    const now = new Date();
+    setCurrentTime(now.getTime());
+    setCalendarMonth(localMonthKey(now));
+    setSelectedPickupDate(localDateKey(now));
     const timer = window.setInterval(() => setCurrentTime(Date.now()), 30_000);
     return () => window.clearInterval(timer);
   }, []);
@@ -163,12 +186,14 @@ export default function HomePage() {
       if (!user) {
         setProfile(blankProfile);
         setAdmin(false);
+        setActiveTab("shop");
         setOrders([]);
         return;
       }
       const token = await user.getIdTokenResult();
       const isStaff = token.claims.admin === true;
       setAdmin(isStaff);
+      if (isStaff) setActiveTab("admin");
       const userSnapshot = await getDoc(profilePath(user.uid));
       if (userSnapshot.exists()) setProfile(userSnapshot.data() as Profile);
     });
@@ -260,7 +285,14 @@ export default function HomePage() {
       const data = await getDoc(profilePath(result.user.uid));
       if (data.exists()) setProfile(data.data() as Profile);
       setAuthOpen(false);
-      if (postAuthTab) setActiveTab(postAuthTab);
+      const token = await result.user.getIdTokenResult();
+      const isStaff = token.claims.admin === true;
+      if (isStaff) {
+        setAdmin(true);
+        setActiveTab("admin");
+      } else if (postAuthTab) {
+        setActiveTab(postAuthTab);
+      }
       setPostAuthTab(null);
       setNotice("You're signed in. Let's find something delicious.");
     } catch (error) {
@@ -326,7 +358,7 @@ export default function HomePage() {
     if (!productDraft) return;
     setBusy(true);
     try {
-      let imageUrl = productDraft.imageUrl || productPhotos.lechon;
+      let imageUrl = productDraft.imageUrl;
       if (imageFile) {
         if (demoMode) {
           imageUrl = URL.createObjectURL(imageFile);
@@ -476,6 +508,32 @@ export default function HomePage() {
   const orderOwnerId = currentUser?.uid ?? (demoMode === "customer" ? "demo-customer" : null);
   const myOrders = orderOwnerId ? orders.filter((order) => order.userId === orderOwnerId) : [];
   const today = new Date().toISOString().slice(0, 10);
+  const todayKey = localDateKey(new Date());
+  const [calendarYear, calendarMonthNumber] = calendarMonth.split("-").map(Number);
+  const calendarMonthDate = calendarMonth ? new Date(calendarYear, calendarMonthNumber - 1, 1) : null;
+  const calendarOffset = calendarMonthDate ? calendarMonthDate.getDay() : 0;
+  const calendarDays = calendarMonthDate
+    ? Array.from({ length: new Date(calendarYear, calendarMonthNumber, 0).getDate() }, (_, index) => index + 1)
+    : [];
+  const calendarOrders = orders.filter((order) => order.status !== "cancelled");
+  const ordersByPickupDate = calendarOrders.reduce<Record<string, CustomerOrder[]>>((groupedOrders, order) => {
+    (groupedOrders[order.pickupDate] ??= []).push(order);
+    return groupedOrders;
+  }, {});
+  const selectedDateOrders = ordersByPickupDate[selectedPickupDate] ?? [];
+
+  function changeCalendarMonth(offset: number) {
+    if (!calendarMonthDate) return;
+    const nextMonth = new Date(calendarYear, calendarMonthNumber - 1 + offset, 1);
+    setCalendarMonth(localMonthKey(nextMonth));
+    setSelectedPickupDate(localDateKey(nextMonth));
+  }
+
+  function selectTodayInCalendar() {
+    const now = new Date();
+    setCalendarMonth(localMonthKey(now));
+    setSelectedPickupDate(localDateKey(now));
+  }
 
   return (
     <main className="app-shell">
@@ -526,7 +584,7 @@ export default function HomePage() {
             {products.map((product, index) => {
               const isPromo = product.saleType === "promo" && (!product.promoFrom || today >= product.promoFrom) && (!product.promoTo || today <= product.promoTo);
               return <article className={`product-card product-card-${index % 3}`} key={product.id}>
-                <div className="product-image" style={{ backgroundImage: `url("${product.imageUrl || productPhotos.lechon}")` }}>
+                <div className="product-image" style={{ backgroundImage: `url("${product.imageUrl}")` }}>
                   <span className={isPromo ? "product-tag promo-tag" : "product-tag"}>{isPromo ? <><Flame size={12} /> SPECIAL</> : "HOUSE FAVORITE"}</span>
                   <button className="product-heart" title="Order this item" onClick={() => requestOrder(product)}><ArrowUpRightIcon /></button>
                 </div>
@@ -552,7 +610,30 @@ export default function HomePage() {
       </section>}
 
       {activeTab === "admin" && canManage && <section className="dashboard-section admin-section">
-        <div className="dashboard-heading"><div><span className="eyebrow"><span className="eyebrow-line" /> CKB LECHON HOUSE</span><h1>Order desk<span className="heading-period">.</span></h1><p>Every detail, from kitchen to pickup.</p></div><button className="add-menu-button" onClick={() => openProductForm()}><Plus size={16} /> Add menu item</button></div>
+        <div className="dashboard-heading"><div><span className="eyebrow"><span className="eyebrow-line" /> CKB LECHON HOUSE</span><h1>Pickup calendar<span className="heading-period">.</span></h1><p>Choose a pickup date to see its orders.</p></div><button className="add-menu-button" onClick={() => openProductForm()}><Plus size={16} /> Add menu item</button></div>
+        <div className="admin-calendar-layout">
+          <section className="admin-calendar-card" aria-labelledby="pickup-calendar-heading">
+            <div className="admin-calendar-toolbar">
+              <button className="calendar-nav-button" onClick={() => changeCalendarMonth(-1)} aria-label="Previous month"><ChevronLeft size={17} /></button>
+              <h2 id="pickup-calendar-heading">{calendarMonthDate?.toLocaleDateString("en-PH", { month: "long", year: "numeric" })}</h2>
+              <button className="calendar-nav-button" onClick={() => changeCalendarMonth(1)} aria-label="Next month"><ChevronRight size={17} /></button>
+              <button className="calendar-today-button" onClick={selectTodayInCalendar}>Today</button>
+            </div>
+            <div className="admin-calendar-weekdays" aria-hidden="true">{["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((weekday) => <span key={weekday}>{weekday}</span>)}</div>
+            <div className="admin-calendar-days">
+              {Array.from({ length: calendarOffset }, (_, index) => <span className="admin-calendar-empty-day" key={`empty-${index}`} />)}
+              {calendarDays.map((day) => {
+                const dateKey = localDateKey(new Date(calendarYear, calendarMonthNumber - 1, day));
+                const dayOrderCount = ordersByPickupDate[dateKey]?.length ?? 0;
+                return <button className={`admin-calendar-day${dateKey === selectedPickupDate ? " selected" : ""}${dateKey === todayKey ? " today" : ""}${dayOrderCount ? " has-orders" : ""}`} key={dateKey} onClick={() => setSelectedPickupDate(dateKey)} aria-pressed={dateKey === selectedPickupDate} aria-label={`${formatCalendarDate(dateKey, { weekday: "long", month: "long", day: "numeric" })}, ${dayOrderCount} ${dayOrderCount === 1 ? "order" : "orders"}`}><span>{day}</span>{dayOrderCount > 0 && <span className="admin-calendar-count">{dayOrderCount}</span>}</button>;
+              })}
+            </div>
+          </section>
+          <section className="admin-selected-date" aria-live="polite" aria-labelledby="selected-date-heading">
+            <div className="selected-date-heading"><div><span className="eyebrow">SELECTED DATE</span><h2 id="selected-date-heading">{selectedPickupDate ? formatCalendarDate(selectedPickupDate, { month: "long", day: "numeric", year: "numeric" }) : "Choose a date"}</h2></div><span className="selected-date-count">{selectedDateOrders.length} {selectedDateOrders.length === 1 ? "order" : "orders"}</span></div>
+            {selectedDateOrders.length === 0 ? <div className="calendar-empty-state">No orders scheduled for this date.</div> : <div className="calendar-orders-table-wrap"><table className="calendar-orders-table"><thead><tr><th>Name</th><th>Order</th><th>Balance</th><th>Contact No.</th></tr></thead><tbody>{selectedDateOrders.map((order) => <tr key={order.id}><td>{order.customer}</td><td>{order.quantity} {order.quantity === 1 ? "item" : "items"} · {order.productName}</td><td><span className={order.paymentStatus === "paid" ? "calendar-balance paid" : "calendar-balance"}>{order.paymentStatus === "paid" ? "Paid" : peso(order.total)}</span></td><td><a href={`tel:${order.phone}`}>{order.phone}</a></td></tr>)}</tbody></table></div>}
+          </section>
+        </div>
         <div className="admin-metrics"><div><span>ALL ORDERS</span><strong>{orders.length.toString().padStart(2, "0")}</strong><PackageCheck size={17} /></div><div><span>NEEDS PAYMENT</span><strong>{orders.filter((item) => item.paymentStatus === "due" && item.status !== "cancelled").length.toString().padStart(2, "0")}</strong><CircleHelp size={17} /></div><div><span>READY TO PICK UP</span><strong>{orders.filter((item) => item.status === "pending").length.toString().padStart(2, "0")}</strong><Clock3 size={17} /></div></div>
         <div className="order-list-heading"><div><h2>The pickup list</h2><span>Customer orders, all in one place.</span></div><select aria-label="Filter orders" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)}><option value="all">All orders</option><option value="pending">Not yet delivered</option><option value="due">Needs full payment</option></select></div>
         {filteredOrders.length === 0 ? <div className="admin-empty">No orders just yet. When a customer books a pickup, it’ll show up here.</div> : <div className="admin-order-list">{filteredOrders.map((order) => <article className="admin-order" key={order.id}><div className="admin-customer"><span className="avatar-small">{(order.customer || "C").slice(0, 1)}</span><div><strong>{order.customer}</strong><span>{order.address}</span><a href={`tel:${order.phone}`}>{order.phone}</a></div></div><div className="admin-order-item"><div className="admin-order-photo" style={{ backgroundImage: `url("${order.imageUrl}")` }} /><div><strong>{order.productName}</strong><span>{order.quantity} × {peso(order.total)}</span></div></div><div className="admin-pickup"><span>PICKUP</span><strong>{formatDate(order.pickupDate)}</strong><span>{formatTime(order.pickupTime)}</span></div><div className="admin-balance"><span>BALANCE</span><strong>{order.paymentStatus === "paid" ? "₱0" : peso(order.total)}</strong><button className={order.paymentStatus === "paid" ? "payment-toggle paid" : "payment-toggle"} onClick={() => updateOrder(order.id, { paymentStatus: order.paymentStatus === "paid" ? "due" : "paid" })}>{order.paymentStatus === "paid" ? "Fully paid" : "Needs payment"}</button></div>{order.status === "cancelled" ? <button className="delivered-toggle cancelled" disabled>Cancelled</button> : <button className={order.status === "delivered" ? "delivered-toggle delivered" : "delivered-toggle"} onClick={() => updateOrder(order.id, { status: order.status === "delivered" ? "pending" : "delivered" })}>{order.status === "delivered" ? <><Check size={15} /> Delivered</> : "Mark delivered"}</button>}</article>)}</div>}
