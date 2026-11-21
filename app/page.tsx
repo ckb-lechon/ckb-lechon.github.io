@@ -97,6 +97,7 @@ type Tab = "shop" | "orders" | "admin";
 type AuthMode = "login" | "signup";
 
 const retiredSampleProductIds = new Set(["whole-lechon", "lechon-belly", "crispy-sisig"]);
+const manilaUtcOffsetMs = 8 * 60 * 60 * 1000;
 
 const blankProfile: Profile = { firstName: "", middleName: "", lastName: "", suffix: "", address: "", phone: "", email: "" };
 const peso = (value: number) => `₱${value.toLocaleString("en-PH", { maximumFractionDigits: 2 })}`;
@@ -123,6 +124,23 @@ function localDateKey(date: Date) {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+function manilaDateKey(date: Date) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Manila",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((item) => item.type === type)?.value ?? "";
+  return `${part("year")}-${part("month")}-${part("day")}`;
+}
+
+function millisecondsUntilNextManilaMidnight(date: Date) {
+  const manilaClock = new Date(date.getTime() + manilaUtcOffsetMs);
+  const nextMidnight = Date.UTC(manilaClock.getUTCFullYear(), manilaClock.getUTCMonth(), manilaClock.getUTCDate() + 1);
+  return nextMidnight - manilaClock.getTime();
 }
 
 function localMonthKey(date: Date) {
@@ -170,6 +188,7 @@ export default function HomePage() {
   const [dateFilter, setDateFilter] = useState("all");
   const [uploadingImage, setUploadingImage] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
+  const [today, setToday] = useState("");
   const [cancelingOrderId, setCancelingOrderId] = useState<string | null>(null);
   const [calendarMonth, setCalendarMonth] = useState("");
   const [selectedPickupDate, setSelectedPickupDate] = useState("");
@@ -180,7 +199,17 @@ export default function HomePage() {
     setCalendarMonth(localMonthKey(now));
     setSelectedPickupDate(localDateKey(now));
     const timer = window.setInterval(() => setCurrentTime(Date.now()), 30_000);
-    return () => window.clearInterval(timer);
+    let midnightTimer: number;
+    const updateManilaDate = () => {
+      const currentDate = new Date();
+      setToday(manilaDateKey(currentDate));
+      midnightTimer = window.setTimeout(updateManilaDate, millisecondsUntilNextManilaMidnight(currentDate) + 25);
+    };
+    updateManilaDate();
+    return () => {
+      window.clearInterval(timer);
+      window.clearTimeout(midnightTimer);
+    };
   }, []);
 
   useEffect(() => {
@@ -532,8 +561,8 @@ export default function HomePage() {
   const signedIn = Boolean(currentUser || demoMode);
   const orderOwnerId = currentUser?.uid ?? (demoMode === "customer" ? "demo-customer" : null);
   const myOrders = orderOwnerId ? orders.filter((order) => order.userId === orderOwnerId) : [];
-  const today = new Date().toISOString().slice(0, 10);
   const todayKey = localDateKey(new Date());
+  const menuProducts = products.filter((product) => product.saleType !== "promo" || !product.promoTo || !today || today <= product.promoTo);
   const [calendarYear, calendarMonthNumber] = calendarMonth.split("-").map(Number);
   const calendarMonthDate = calendarMonth ? new Date(calendarYear, calendarMonthNumber - 1, 1) : null;
   const calendarOffset = calendarMonthDate ? calendarMonthDate.getDay() : 0;
@@ -605,8 +634,8 @@ export default function HomePage() {
             <p>Fresh from our kitchen,<br />ready for your table.</p>
           </div>
           <div className="product-grid">
-            {products.length === 0 && <div className="empty-menu">Our kitchen is adding something special. Check back soon.</div>}
-            {products.map((product, index) => {
+            {menuProducts.length === 0 && <div className="empty-menu">Our kitchen is adding something special. Check back soon.</div>}
+            {menuProducts.map((product, index) => {
               const isPromo = product.saleType === "promo" && (!product.promoFrom || today >= product.promoFrom) && (!product.promoTo || today <= product.promoTo);
               return <article className={`product-card product-card-${index % 3}`} key={product.id}>
                 <div className="product-image" style={{ backgroundImage: `url("${product.imageUrl}")` }}>
