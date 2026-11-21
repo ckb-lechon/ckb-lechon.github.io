@@ -475,7 +475,7 @@ export default function HomePage() {
           <span className="brand-words"><strong>CKB Lechon</strong><small>CK Bless Lechon House</small></span>
         </button>
         <nav className="desktop-nav" aria-label="Main navigation">
-          <button className={activeTab === "shop" ? "nav-link active" : "nav-link"} onClick={() => setActiveTab("shop")}>Order</button>
+          <button className={activeTab === "shop" ? "nav-link active" : "nav-link"} onClick={() => setActiveTab("shop")}>Menu</button>
           {signedIn && !canManage && <button className={activeTab === "orders" ? "nav-link active" : "nav-link"} onClick={requestOrders}>My Orders</button>}
           {canManage && <button className={activeTab === "admin" ? "nav-link active" : "nav-link"} onClick={() => setActiveTab("admin")}>Order List</button>}
         </nav>
