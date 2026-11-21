@@ -160,6 +160,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .admin-metrics svg { position: absolute; top: 16px; right: 16px; color: #ce694b; }
 .admin-metrics > div:nth-child(4) svg { color: var(--green); }
 .order-list-heading, .admin-products-heading { margin: 0 0 12px; display: flex; align-items: center; justify-content: space-between; }
+.delivered-orders-heading { margin-top: 39px; }
 .order-list-heading h2, .admin-products-heading h2 { font-size: 23px; }
 .order-list-heading > div > span, .admin-products-heading > div > span { color: var(--muted); font-size: 10px; }
 .order-list-heading select { min-height: 35px; padding: 0 10px; border: 1px solid var(--line); border-radius: 9px; color: #745a50; background: #fffaf6; font-size: 10px; }
@@ -385,6 +386,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   .admin-metrics svg { top: 9px; right: 8px; width: 13px; }
   .order-list-heading { align-items: flex-end; gap: 8px; }
   .order-list-heading h2, .admin-products-heading h2 { font-size: 20px; }
+  .delivered-orders-heading { margin-top: 28px; }
   .order-list-heading > div > span, .admin-products-heading > div > span { font-size: 8px; }
   .order-list-heading select { min-height: 31px; max-width: 134px; padding: 0 6px; font-size: 8px; }
   .admin-order { padding: 10px; grid-template-columns: 1fr 1fr; gap: 10px 8px; }
