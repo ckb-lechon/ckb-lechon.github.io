@@ -40,6 +40,7 @@ import {
   EyeOff,
   Flame,
   Facebook,
+  List,
   LogOut,
   Menu,
   PackageCheck,
@@ -649,7 +650,7 @@ export default function HomePage() {
         <div className="topbar-actions">
           {!signedIn ? <button className="sign-in-button" onClick={() => showSignIn("login")}>Sign in <ArrowRight size={16} /></button> : <>
             <div className="profile-chip"><span className="profile-dot">{(profile.firstName || "C").slice(0, 1)}</span><span>{profile.firstName || "Account"}</span></div>
-            <button className="mobile-menu" onClick={() => canManage ? setActiveTab(activeTab === "admin" ? "shop" : "admin") : activeTab === "shop" ? requestOrders() : setActiveTab("shop")} aria-label={canManage ? activeTab === "admin" ? "Back to Order menu" : "Order List" : activeTab === "shop" ? "My Orders" : "Back to Order menu"}><Menu size={19} /></button>
+            <button className="mobile-menu" onClick={() => canManage ? setActiveTab(activeTab === "admin" ? "shop" : "admin") : activeTab === "shop" ? requestOrders() : setActiveTab("shop")} aria-label={canManage ? activeTab === "admin" ? "Back to Order menu" : "Order List" : activeTab === "shop" ? "My Orders" : "Back to Order menu"}>{canManage ? activeTab === "admin" ? <Menu size={19} /> : <List size={19} /> : activeTab === "shop" ? <ShoppingBag size={19} /> : <Menu size={19} />}</button>
             <button className="logout-button" onClick={logout} aria-label="Log out" title="Log out"><LogOut size={16} /><span>Log out</span></button>
           </>}
         </div>
