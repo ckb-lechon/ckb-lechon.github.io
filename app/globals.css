@@ -157,6 +157,10 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .calendar-orders-table td:first-child { color: var(--ink); font-weight: 700; }
 .calendar-orders-table td:last-child a { color: #9b472c; text-decoration: none; white-space: nowrap; }
 .calendar-orders-table td:last-child a:hover { text-decoration: underline; }
+.order-name-link { padding: 0; border: 0; color: var(--tomato); background: transparent; font: inherit; font-weight: 700; text-align: left; cursor: pointer; }
+.order-name-link:hover { text-decoration: underline; }
+.order-name-link:focus-visible { border-radius: 3px; outline: 2px solid #ff960d; outline-offset: 2px; }
+.admin-order-item .order-name-link { overflow: hidden; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
 .admin-users-table { min-width: 560px; }
 .admin-users-table td:nth-child(2) { overflow-wrap: anywhere; }
 .admin-users-table td:last-child select { min-height: 34px; min-width: 120px; padding: 0 10px; border: 1px solid var(--line); border-radius: 9px; color: #745a50; background: #fffaf6; font-size: 10px; }
@@ -320,6 +324,15 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .order-mobile-heading, .order-mobile-summary { display: none; }
 .pickup-note { padding: 9px; border-radius: 8px; color: #8a543e; background: #fff0e5; font-size: 10px; line-height: 1.5; }
 .product-dialog { width: min(100%, 500px); }
+.menu-item-preview-dialog { width: min(100%, 680px); padding: 8px; }
+.menu-item-preview-photo { height: min(46vh, 390px); position: relative; overflow: hidden; border-radius: 12px; background-color: #e8ab77; background-position: center; background-size: cover; }
+.menu-item-preview-copy { padding: 14px 16px 16px; }
+.menu-item-preview-title { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.menu-item-preview-title h2 { min-width: 0; margin: 0; font-family: var(--serif); font-size: 28px; line-height: 1.15; overflow-wrap: anywhere; }
+.menu-item-preview-title > strong { flex-shrink: 0; color: var(--tomato); font-size: 16px; }
+.menu-item-preview-copy > p { margin: 10px 0 0; color: #836d65; font-size: 13px; line-height: 1.6; }
+.menu-item-preview-copy .product-stock { font-size: 13px; }
+.menu-item-preview-copy .promo-date { margin: 9px 0 0; font-size: 11px; }
 
 @keyframes rise-in { from { opacity: 0; transform: translateY(11px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes settle-in { from { opacity: 0; transform: translate(10px, 8px) rotate(5deg); } to { opacity: 1; transform: translate(0, 0) rotate(2deg); } }
@@ -512,6 +525,14 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   .order-dialog .pickup-fields input { padding-right: 5px; padding-left: 5px; }
   .order-dialog .submit-button { min-height: 42px; }
   .product-dialog { width: 100%; }
+  .menu-item-preview-dialog { width: 100%; padding: 7px; }
+  .menu-item-preview-photo { height: min(36dvh, 280px); }
+  .menu-item-preview-copy { padding: 11px 10px 12px; }
+  .menu-item-preview-title h2 { font-size: 22px; }
+  .menu-item-preview-title > strong { font-size: 13px; }
+  .menu-item-preview-copy > p { margin-top: 7px; font-size: 11px; }
+  .menu-item-preview-copy .product-stock { font-size: 11px; }
+  .menu-item-preview-copy .promo-date { margin-top: 7px; font-size: 9px; }
   .toast { bottom: 12px; font-size: 9px; }
 }
 
