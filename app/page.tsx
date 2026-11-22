@@ -999,6 +999,10 @@ export default function HomePage() {
         </section>
 
         <section className="menu-section" id="menu">
+          <div className="mobile-contact-info">
+            <div className="mobile-contact-location"><MapPin size={14} aria-hidden="true" /><span>Purok-11, Brgy. Obrero, Butuan City</span></div>
+            <p>Follow us on Facebook; just <a href="https://www.facebook.com/profile.php?id=100089199199223" target="_blank" rel="noreferrer">click here!</a></p>
+          </div>
           <div className="mobile-message-marquee">
             <p className="mobile-message-description">Menu updates: {mobileMenuMessages.join(" ")}</p>
             <div className="mobile-message-track" aria-hidden="true">
