@@ -732,7 +732,7 @@ export default function HomePage() {
         <section className="hero" aria-labelledby="hero-title">
           <div className="hero-copy">
             <div className="eyebrow"><span className="eyebrow-line" /> THE TABLE IS WAITING</div>
-            <h1 id="hero-title">Ang isa sa lami nga<br /><em>golden lechon.</em></h1>
+            <h1 id="hero-title">Ang lami-an nga<br /><em>golden lechon.</em></h1>
             <p>Slow-roasted, proudly Filipino, and always worth gathering for.</p>
             <button className="hero-cta" onClick={() => document.getElementById("menu")?.scrollIntoView({ behavior: "smooth" })}>Find your feast <ArrowDownRight size={17} /></button>
           </div>
