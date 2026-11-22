@@ -265,7 +265,9 @@ export default function HomePage() {
   const [orderProduct, setOrderProduct] = useState<Product | null>(null);
   const [selectedOrderProduct, setSelectedOrderProduct] = useState<Product | null>(null);
   const [cancelOrderConfirmation, setCancelOrderConfirmation] = useState<CustomerOrder | null>(null);
+  const [orderActionConfirmation, setOrderActionConfirmation] = useState<{ order: CustomerOrder; action: "payment" | "delivered" } | null>(null);
   const [productRemovalConfirmation, setProductRemovalConfirmation] = useState<Product | null>(null);
+  const [confirmingOrderActionId, setConfirmingOrderActionId] = useState<string | null>(null);
   const [logoutConfirmationOpen, setLogoutConfirmationOpen] = useState(false);
   const [downpaymentQrOpen, setDownpaymentQrOpen] = useState(false);
   const [conversationOrder, setConversationOrder] = useState<CustomerOrder | null>(null);
@@ -824,6 +826,39 @@ export default function HomePage() {
     setNotice("Order updated.");
   }
 
+  async function confirmOrderAction() {
+    if (!orderActionConfirmation || confirmingOrderActionId) return;
+    const { order, action } = orderActionConfirmation;
+    const currentOrder = orders.find((item) => item.id === order.id);
+    if (!currentOrder) {
+      setOrderActionConfirmation(null);
+      setNotice("This order is no longer available.");
+      return;
+    }
+    if (action === "payment" && orderBalance(currentOrder) === 0) {
+      setOrderActionConfirmation(null);
+      setNotice("This order is already fully paid.");
+      return;
+    }
+    if (action === "delivered" && currentOrder.status !== "pending") {
+      setOrderActionConfirmation(null);
+      setNotice("This order can no longer be marked delivered.");
+      return;
+    }
+
+    setConfirmingOrderActionId(currentOrder.id);
+    try {
+      await updateOrder(currentOrder.id, action === "payment"
+        ? { paymentStatus: "paid" }
+        : { status: "delivered", deliveredAt: Date.now() });
+      setOrderActionConfirmation(null);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Unable to update this order.");
+    } finally {
+      setConfirmingOrderActionId(null);
+    }
+  }
+
   async function updateUserRole(user: ManagedUser, role: ManagedUser["role"]) {
     if (!db || !admin || user.uid === currentUser?.uid || changingRoleUid) return;
     setChangingRoleUid(user.uid);
@@ -1082,10 +1117,10 @@ export default function HomePage() {
         <div className="admin-order-item"><div className="admin-order-photo" style={{ backgroundImage: `url("${order.imageUrl}")` }} /><div><button type="button" className="order-name-link" onClick={() => openOrderProductCard(order)}>{order.productName}</button><span>{order.quantity} {order.quantity === 1 ? "item" : "items"} · {peso(order.total)}</span></div></div>
         <div className="admin-pickup"><span>PICKUP</span><strong>{formatDate(order.pickupDate)}</strong><span>{formatTime(order.pickupTime)}</span></div>
         <div className="admin-downpayment"><span>DOWNPAYMENT</span>{order.status === "delivered" ? <span className="downpayment-value">{peso(order.downpayment ?? 0)}</span> : <label className="downpayment-input">₱<input type="number" min="0" max={order.total} step="0.01" defaultValue={order.downpayment ?? 0} key={`${order.id}-${order.downpayment ?? 0}`} aria-label={`Downpayment for ${order.customer}`} onBlur={(event) => saveDownpayment(order, event.currentTarget)} /></label>}</div>
-        <div className="admin-balance"><span>BALANCE</span><strong>{peso(orderBalance(order))}</strong>{order.paymentStatus === "paid" ? <button className="payment-toggle paid" onClick={() => updateOrder(order.id, { paymentStatus: "due" })}>Fully paid</button> : orderBalance(order) === 0 ? <span className="payment-toggle paid">Fully paid</span> : <button className="payment-toggle" onClick={() => updateOrder(order.id, { paymentStatus: "paid" })}>Needs payment</button>}</div>
+        <div className="admin-balance"><span>BALANCE</span><strong>{peso(orderBalance(order))}</strong>{order.paymentStatus === "paid" ? <button className="payment-toggle paid" onClick={() => updateOrder(order.id, { paymentStatus: "due" })}>Fully paid</button> : orderBalance(order) === 0 ? <span className="payment-toggle paid">Fully paid</span> : <button className="payment-toggle" onClick={() => setOrderActionConfirmation({ order, action: "payment" })}>Needs payment</button>}</div>
         <div className="admin-order-actions">
           {currentUser && <button className="order-message-button" aria-label={`Message ${order.customer}${unreadCount ? `, ${unreadCount} new messages` : ""}`} onClick={() => setConversationOrder(order)}>Message{unreadCount > 0 && <span className="unread-message-badge" aria-hidden="true">{unreadCount > 99 ? "99+" : unreadCount}</span>}</button>}
-          {order.status === "cancelled" ? <button className="delivered-toggle cancelled" disabled>Cancelled</button> : order.status === "delivered" ? <button className="delivered-toggle delivered" disabled><Check size={15} /> Delivered</button> : <button className="delivered-toggle" onClick={() => updateOrder(order.id, { status: "delivered", deliveredAt: Date.now() })}>Mark delivered</button>}
+          {order.status === "cancelled" ? <button className="delivered-toggle cancelled" disabled>Cancelled</button> : order.status === "delivered" ? <button className="delivered-toggle delivered" disabled><Check size={15} /> Delivered</button> : <button className="delivered-toggle" onClick={() => setOrderActionConfirmation({ order, action: "delivered" })}>Mark delivered</button>}
         </div>
       </article>
     );
@@ -1334,6 +1369,14 @@ export default function HomePage() {
       {locationMapOpen && <div className="overlay map-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) setLocationMapOpen(false); }} onKeyDown={(event) => { if (event.key === "Escape") setLocationMapOpen(false); }}><section className="dialog map-dialog" role="dialog" aria-modal="true" aria-labelledby="location-map-title" aria-describedby="location-map-description"><button className="dialog-close" autoFocus onClick={() => setLocationMapOpen(false)} aria-label="Close location map"><X size={19} /></button><div className="dialog-kicker">CKB LECHON HOUSE</div><h2 id="location-map-title">Find us.</h2><p id="location-map-description">Located at Purok-11, Obrero, Butuan City 8600.</p><iframe className="location-map-frame" title="Map to CKB Lechon House" src="https://www.google.com/maps?q=8.964564313632456%2C125.53672241133174&z=17&output=embed" loading="lazy" referrerPolicy="no-referrer-when-downgrade" /><a className="map-external-link" href="https://www.google.com/maps?q=8.964564313632456%2C125.53672241133174" target="_blank" rel="noreferrer">Open in Google Maps <ArrowRight size={14} /></a></section></div>}
 
       {cancelOrderConfirmation && <div className="overlay confirmation-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) setCancelOrderConfirmation(null); }} onKeyDown={(event) => { if (event.key === "Escape") setCancelOrderConfirmation(null); }}><section className="dialog confirmation-dialog" role="alertdialog" aria-modal="true" aria-labelledby="cancel-order-title" aria-describedby="cancel-order-description"><span className="confirmation-icon"><CircleAlert size={21} /></span><div className="dialog-kicker">YOUR CKB TABLE</div><h2 id="cancel-order-title">Cancel this order?</h2><p id="cancel-order-description">You’re cancelling <strong>{cancelOrderConfirmation.productName}</strong>. This can’t be undone.</p><div className="confirmation-order-summary"><span>{formatDate(cancelOrderConfirmation.pickupDate)} · {formatTime(cancelOrderConfirmation.pickupTime)}</span><strong>{peso(cancelOrderConfirmation.total)}</strong></div><div className="confirmation-actions"><button className="confirmation-keep" autoFocus onClick={() => setCancelOrderConfirmation(null)}>Keep order</button><button className="confirmation-cancel" onClick={confirmOrderCancellation} disabled={cancelingOrderId === cancelOrderConfirmation.id}>{cancelingOrderId === cancelOrderConfirmation.id ? "Cancelling…" : "Cancel order"}</button></div></section></div>}
+
+      {orderActionConfirmation && (() => {
+        const order = orders.find((item) => item.id === orderActionConfirmation.order.id) ?? orderActionConfirmation.order;
+        const isPayment = orderActionConfirmation.action === "payment";
+        const isConfirming = confirmingOrderActionId === order.id;
+        const closeConfirmation = () => { if (!confirmingOrderActionId) setOrderActionConfirmation(null); };
+        return <div className="overlay confirmation-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) closeConfirmation(); }} onKeyDown={(event) => { if (event.key === "Escape") closeConfirmation(); }}><section className="dialog confirmation-dialog" role="alertdialog" aria-modal="true" aria-labelledby="order-action-title" aria-describedby="order-action-description"><span className="confirmation-icon">{isPayment ? <Banknote size={21} /> : <PackageCheck size={21} />}</span><div className="dialog-kicker">ORDER CONFIRMATION</div><h2 id="order-action-title">{isPayment ? "Confirm full payment?" : "Confirm order delivery?"}</h2><p id="order-action-description">{isPayment ? <>Has <strong>{order.customer}</strong> paid the full amount for this order? Confirm only after receiving the full payment; this will clear the remaining balance.</> : <>Are you sure <strong>{order.customer}</strong> is receiving this order? Confirm once it has been handed over to the customer.</>}</p><div className="confirmation-order-summary"><span>{order.productName} · {isPayment ? "Remaining balance" : `${formatDate(order.pickupDate)} · ${formatTime(order.pickupTime)}`}</span><strong>{isPayment ? peso(orderBalance(order)) : peso(order.total)}</strong></div><div className="confirmation-actions"><button className="confirmation-keep" autoFocus onClick={closeConfirmation} disabled={Boolean(confirmingOrderActionId)}>{isPayment ? "Not yet" : "Keep pending"}</button><button className="confirmation-accept" onClick={confirmOrderAction} disabled={Boolean(confirmingOrderActionId)}>{isConfirming ? "Saving…" : isPayment ? "Confirm full payment" : "Mark delivered"}</button></div></section></div>;
+      })()}
 
       {productRemovalConfirmation && <div className="overlay confirmation-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget && !removingProductId) setProductRemovalConfirmation(null); }} onKeyDown={(event) => { if (event.key === "Escape" && !removingProductId) setProductRemovalConfirmation(null); }}><section className="dialog confirmation-dialog" role="alertdialog" aria-modal="true" aria-labelledby="remove-product-title" aria-describedby="remove-product-description"><span className="confirmation-icon"><CircleAlert size={21} /></span><div className="dialog-kicker">THE CKB MENU</div><h2 id="remove-product-title">Remove this menu item?</h2><p id="remove-product-description">You’re removing <strong>{productRemovalConfirmation.orderName}</strong>. Customers will no longer be able to order it. This can’t be undone.</p><div className="confirmation-actions"><button className="confirmation-keep" autoFocus onClick={() => setProductRemovalConfirmation(null)} disabled={Boolean(removingProductId)}>Keep item</button><button className="confirmation-cancel" onClick={confirmProductRemoval} disabled={Boolean(removingProductId)}>{removingProductId === productRemovalConfirmation.id ? "Removing…" : "Remove item"}</button></div></section></div>}
 
