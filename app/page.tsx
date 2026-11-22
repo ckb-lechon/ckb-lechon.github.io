@@ -10,6 +10,7 @@ import {
 import {
   addDoc,
   collection,
+  deleteDoc,
   doc,
   getDoc,
   onSnapshot,
@@ -553,7 +554,7 @@ export default function HomePage() {
     }
   }
 
-  async function archiveProduct(product: Product) {
+  async function deleteProduct(product: Product) {
     if (removingProductId) return;
     setRemovingProductId(product.id);
     try {
@@ -562,22 +563,13 @@ export default function HomePage() {
         setProducts(next);
         localStorage.setItem("ckb-demo-products", JSON.stringify(next));
       } else if (db && currentUser && admin) {
-        await updateDoc(doc(db, "products", product.id), {
-          name: product.orderName,
-          orderName: product.orderName,
-          description: product.description,
-          price: product.price,
-          saleType: product.saleType,
-          ...(product.promoFrom ? { promoFrom: product.promoFrom } : {}),
-          ...(product.promoTo ? { promoTo: product.promoTo } : {}),
-          imageUrl: product.imageUrl,
-          active: false,
-        });
+        await deleteDoc(doc(db, "products", product.id));
+        setProducts((current) => current.filter((item) => item.id !== product.id));
       } else {
         setNotice("Admin access is required to remove menu items.");
         return;
       }
-      setNotice("Menu item removed from the shop.");
+      setNotice("Menu item deleted from Firestore.");
     } catch (error) {
       setNotice(error instanceof Error ? `Unable to remove menu item: ${error.message}` : "Unable to remove this menu item.");
     } finally {
@@ -894,7 +886,7 @@ export default function HomePage() {
         <div className="order-list-heading delivered-orders-heading"><div><h2>Delivered Orders</h2><span>Orders handed over to customers.</span></div></div>
         {deliveredOrders.length === 0 ? <div className="admin-empty">No delivered orders just yet.</div> : <div className="admin-order-list">{deliveredOrders.map(renderAdminOrder)}</div>}
         <div className="admin-products-heading"><div><h2>Menu items</h2><span>Manage what customers can order.</span></div></div>
-        {products.length === 0 ? <div className="admin-empty">No active menu items. Add an item to make it available to customers.</div> : <div className="admin-products-list">{products.map((product) => <article key={product.id}><div className="admin-product-photo" style={{ backgroundImage: `url("${product.imageUrl}")` }} /><div className="admin-product-copy"><strong>{product.orderName}</strong><span>{peso(product.price)} · {product.saleType === "promo" ? `Promo${product.promoFrom ? ` from ${formatDate(product.promoFrom)}` : ""}` : "Regular"}</span></div>{isPromoExpired(product, today) && <span className="expired-promo-label">Expired Promo</span>}<button className="edit-product" onClick={() => openProductForm(product)}>Edit</button><button className="remove-product" onClick={() => archiveProduct(product)} disabled={removingProductId === product.id}>{removingProductId === product.id ? "Removing…" : "Remove"}</button></article>)}</div>}
+        {products.length === 0 ? <div className="admin-empty">No active menu items. Add an item to make it available to customers.</div> : <div className="admin-products-list">{products.map((product) => <article key={product.id}><div className="admin-product-photo" style={{ backgroundImage: `url("${product.imageUrl}")` }} /><div className="admin-product-copy"><strong>{product.orderName}</strong><span>{peso(product.price)} · {product.saleType === "promo" ? `Promo${product.promoFrom ? ` from ${formatDate(product.promoFrom)}` : ""}` : "Regular"}</span></div>{isPromoExpired(product, today) && <span className="expired-promo-label">Expired Promo</span>}<button className="edit-product" onClick={() => openProductForm(product)}>Edit</button><button className="remove-product" onClick={() => deleteProduct(product)} disabled={removingProductId === product.id}>{removingProductId === product.id ? "Deleting…" : "Remove"}</button></article>)}</div>}
       </section>}
 
       {activeTab === "users" && canManageUsers && currentUser && <section className="dashboard-section admin-section">
