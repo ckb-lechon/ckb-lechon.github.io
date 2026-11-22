@@ -2,6 +2,12 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     function signedIn() { return request.auth != null; }
+    function productPath(productId) {
+      return /databases/$(database)/documents/products/$(productId);
+    }
+    function orderPath(orderId) {
+      return /databases/$(database)/documents/orders/$(orderId);
+    }
     function isAdmin() {
       return signedIn()
         && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
@@ -43,8 +49,53 @@ service cloud.firestore {
     function allowsDecimalQuantity(orderName) {
       return orderName in ['Lechon Kinilo', 'Karne Kinilo'];
     }
-    function validOrder() {
+    function validStockDeduction(productId) {
+      let orderId = request.resource.data.get('lastStockOrderId', '');
+      let stock = resource.data.get('stock', -1);
+      let nextStock = request.resource.data.get('stock', -1);
+      let orderAfter = getAfter(orderPath(orderId)).data;
+      return signedIn()
+        && orderId is string
+        && request.resource.data.keys().hasAll(['stock', 'lastStockOrderId'])
+        && allowsDecimalQuantity(resource.data.get('orderName', resource.data.get('name', '')))
+        && stock is number
+        && nextStock is number
+        && nextStock >= 0
+        && nextStock < stock
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stock', 'lastStockOrderId'])
+        && orderAfter.userId == request.auth.uid
+        && orderAfter.productId == productId
+        && orderAfter.status == 'pending'
+        && orderAfter.stockDeducted == true
+        && orderAfter.quantity == stock - nextStock;
+    }
+    function validStockRestock(productId) {
+      let orderId = request.resource.data.get('lastStockOrderId', '');
+      let stock = resource.data.get('stock', -1);
+      let nextStock = request.resource.data.get('stock', -1);
+      let orderBefore = get(orderPath(orderId)).data;
+      let orderAfter = getAfter(orderPath(orderId)).data;
+      return signedIn()
+        && orderId is string
+        && request.resource.data.keys().hasAll(['stock', 'lastStockOrderId'])
+        && allowsDecimalQuantity(resource.data.get('orderName', resource.data.get('name', '')))
+        && stock is number
+        && nextStock is number
+        && nextStock == stock + orderBefore.quantity
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stock', 'lastStockOrderId'])
+        && orderBefore.userId == request.auth.uid
+        && orderBefore.productId == productId
+        && orderBefore.status == 'pending'
+        && orderBefore.stockDeducted == true
+        && orderAfter.userId == request.auth.uid
+        && orderAfter.productId == productId
+        && orderAfter.status == 'cancelled'
+        && orderAfter.stockDeducted == true
+        && orderAfter.quantity == orderBefore.quantity;
+    }
+    function validOrder(orderId) {
       let product = get(/databases/$(database)/documents/products/$(request.resource.data.productId)).data;
+      let productAfter = getAfter(productPath(request.resource.data.productId)).data;
       let quantity = request.resource.data.quantity;
       let orderName = product.get('orderName', product.name);
       return request.resource.data.userId == request.auth.uid
@@ -67,19 +118,33 @@ service cloud.firestore {
           || (!allowsDecimalQuantity(orderName)
             && quantity is int
             && quantity >= 1))
+        && (!allowsDecimalQuantity(orderName)
+          || (product.get('stock', -1) is number
+            && product.get('stock', -1) >= quantity
+            && productAfter.get('stock', -1) == product.stock - quantity
+            && productAfter.get('lastStockOrderId', '') == orderId
+            && request.resource.data.get('stockDeducted', false) == true))
         && request.resource.data.total == product.price * request.resource.data.quantity
         && (!request.resource.data.keys().hasAny(['downpayment']) || request.resource.data.downpayment == 0)
         && request.resource.data.createdAt is int
         && request.resource.data.createdAt <= request.time.toMillis()
         && request.resource.data.createdAt >= request.time.toMillis() - 300000;
     }
-    function ownerCanCancelOrder() {
+    function ownerCanCancelOrder(orderId) {
       return signedIn()
         && resource.data.userId == request.auth.uid
         && resource.data.status == 'pending'
         && request.resource.data.status == 'cancelled'
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'cancelledAt'])
         && request.resource.data.cancelledAt == request.time
+        && (!allowsDecimalQuantity(resource.data.productName)
+          || resource.data.get('stockDeducted', false) != true
+          || !exists(productPath(resource.data.productId))
+          || !allowsDecimalQuantity(get(productPath(resource.data.productId)).data.get(
+            'orderName', get(productPath(resource.data.productId)).data.get('name', '')))
+          || (getAfter(productPath(resource.data.productId)).data.get('stock', -1)
+              == get(productPath(resource.data.productId)).data.get('stock', -1) + resource.data.quantity
+            && getAfter(productPath(resource.data.productId)).data.get('lastStockOrderId', '') == orderId))
         && resource.data.createdAt is int
         && resource.data.createdAt <= request.time.toMillis()
         && request.time.toMillis() - resource.data.createdAt <= 7200000;
@@ -92,7 +157,10 @@ service cloud.firestore {
 
     match /products/{productId} {
       allow read: if resource.data.active == true || isAdmin();
-      allow create, update: if isAdmin() && validProduct();
+      allow create: if isAdmin() && validProduct();
+      allow update: if (isAdmin() && validProduct())
+        || validStockDeduction(productId)
+        || validStockRestock(productId);
       allow delete: if isAdmin();
     }
 
@@ -109,9 +177,9 @@ service cloud.firestore {
     }
 
     match /orders/{orderId} {
-      allow create: if signedIn() && validOrder();
+      allow create: if signedIn() && validOrder(orderId);
       allow read: if signedIn() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow update: if (isAdmin() && deliveredOrderFieldsAreLocked()) || ownerCanCancelOrder();
+      allow update: if (isAdmin() && deliveredOrderFieldsAreLocked()) || ownerCanCancelOrder(orderId);
       allow delete: if isAdmin();
 
       match /messages/{messageId} {

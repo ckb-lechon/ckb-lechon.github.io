@@ -17,6 +17,7 @@ import {
   onSnapshot,
   orderBy,
   query,
+  runTransaction,
   serverTimestamp,
   setDoc,
   updateDoc,
@@ -101,6 +102,7 @@ type Product = {
   orderName: OrderName;
   description: string;
   stock?: number;
+  lastStockOrderId?: string;
   price: number;
   saleType: "regular" | "promo";
   promoFrom?: string;
@@ -129,6 +131,7 @@ type CustomerOrder = {
   productName: string;
   imageUrl: string;
   quantity: number;
+  stockDeducted?: boolean;
   total: number;
   downpayment?: number;
   pickupDate: string;
@@ -632,11 +635,60 @@ export default function HomePage() {
     setBusy(true);
     try {
       if (demoMode) {
-        const nextOrders = [{ ...order, id: crypto.randomUUID() }, ...orders];
+        if (supportsStock(orderProduct.orderName)) {
+          const stockedProduct = products.find((product) => product.id === orderProduct.id);
+          if (typeof stockedProduct?.stock !== "number" || !Number.isFinite(stockedProduct.stock)) {
+            throw new Error("Stock is not set for this menu item. Please contact us.");
+          }
+          if (quantity > stockedProduct.stock) {
+            throw new Error(`Only ${stockedProduct.stock} in stock. Reduce your quantity and try again.`);
+          }
+          const nextProducts = products.map((product) => product.id === stockedProduct.id
+            ? { ...product, stock: product.stock! - quantity }
+            : product);
+          setProducts(nextProducts);
+          localStorage.setItem("ckb-demo-products", JSON.stringify(nextProducts));
+        }
+        const placedOrder = {
+          ...order,
+          ...(supportsStock(orderProduct.orderName) ? { stockDeducted: true } : {}),
+        };
+        const nextOrders = [{ ...placedOrder, id: crypto.randomUUID() }, ...orders];
         setOrders(nextOrders);
         localStorage.setItem("ckb-demo-orders", JSON.stringify(nextOrders));
       } else if (db && currentUser) {
-        await addDoc(orderCollection(), order);
+        if (supportsStock(orderProduct.orderName)) {
+          const productRef = doc(db, "products", orderProduct.id);
+          const orderRef = doc(orderCollection());
+          await runTransaction(db, async (transaction) => {
+            const productSnapshot = await transaction.get(productRef);
+            if (!productSnapshot.exists()) throw new Error("This menu item is no longer available.");
+            const productData = productSnapshot.data();
+            const currentOrderName = normalizeOrderName(productData.orderName ?? productData.name);
+            if (!productData.active || !supportsStock(currentOrderName)) {
+              throw new Error("This menu item is no longer available. Refresh the menu and try again.");
+            }
+            if (typeof productData.stock !== "number" || !Number.isFinite(productData.stock)) {
+              throw new Error("Stock is not set for this menu item. Please contact us.");
+            }
+            if (quantity > productData.stock) {
+              throw new Error(`Only ${productData.stock} in stock. Reduce your quantity and try again.`);
+            }
+            transaction.update(productRef, {
+              stock: productData.stock - quantity,
+              lastStockOrderId: orderRef.id,
+            });
+            transaction.set(orderRef, {
+              ...order,
+              stockDeducted: true,
+              productName: currentOrderName,
+              imageUrl: productData.imageUrl,
+              total: productData.price * quantity,
+            });
+          });
+        } else {
+          await addDoc(orderCollection(), order);
+        }
       } else {
         setBusy(false);
         showSignIn("login");
@@ -839,8 +891,47 @@ export default function HomePage() {
         const nextOrders = orders.map((item) => item.id === order.id ? { ...item, status: "cancelled" as const, cancelledAt } : item);
         setOrders(nextOrders);
         localStorage.setItem("ckb-demo-orders", JSON.stringify(nextOrders));
+        const stockedProduct = products.find((product) => product.id === order.productId);
+        if (order.stockDeducted === true && stockedProduct && supportsStock(stockedProduct.orderName)
+          && typeof stockedProduct.stock === "number") {
+          const nextProducts = products.map((product) => product.id === stockedProduct.id
+            ? { ...product, stock: product.stock! + order.quantity }
+            : product);
+          setProducts(nextProducts);
+          localStorage.setItem("ckb-demo-products", JSON.stringify(nextProducts));
+        }
       } else if (db && currentUser) {
-        await updateDoc(doc(db, "orders", order.id), { status: "cancelled", cancelledAt: serverTimestamp() });
+        const orderRef = doc(db, "orders", order.id);
+        if (!supportsStock(normalizeOrderName(order.productName))) {
+          await updateDoc(orderRef, { status: "cancelled", cancelledAt: serverTimestamp() });
+        } else {
+          await runTransaction(db, async (transaction) => {
+            const orderSnapshot = await transaction.get(orderRef);
+            if (!orderSnapshot.exists()) throw new Error("This order is no longer available.");
+            const currentOrder = { id: orderSnapshot.id, ...orderSnapshot.data() } as CustomerOrder;
+            if (!canCancelOrder(currentOrder, Date.now())) {
+              throw new Error("This order can no longer be cancelled.");
+            }
+            if (currentOrder.stockDeducted === true) {
+              const productRef = doc(db!, "products", currentOrder.productId);
+              const productSnapshot = await transaction.get(productRef);
+              if (productSnapshot.exists()) {
+                const productData = productSnapshot.data();
+                const productOrderName = normalizeOrderName(productData.orderName ?? productData.name);
+                if (supportsStock(productOrderName)) {
+                  if (typeof productData.stock !== "number" || !Number.isFinite(productData.stock)) {
+                    throw new Error("The menu stock is unavailable. Please contact us to cancel this order.");
+                  }
+                  transaction.update(productRef, {
+                    stock: productData.stock + currentOrder.quantity,
+                    lastStockOrderId: currentOrder.id,
+                  });
+                }
+              }
+            }
+            transaction.update(orderRef, { status: "cancelled", cancelledAt: serverTimestamp() });
+          });
+        }
       } else {
         return;
       }
@@ -1065,16 +1156,21 @@ export default function HomePage() {
               <div className="product-grid">
                 {categoryProducts.map((product, index) => {
                   const isPromo = product.saleType === "promo" && (!product.promoFrom || today >= product.promoFrom) && (!product.promoTo || today <= product.promoTo);
+                  const stockUnavailable = supportsStock(product.orderName)
+                    && (typeof product.stock !== "number" || product.stock <= 0);
                   return <article className={`product-card product-card-${index % 3}`} key={product.id}>
                     <div className="product-image" style={{ backgroundImage: `url("${product.imageUrl}")` }}>
                       <span className={isPromo ? "product-tag promo-tag" : "product-tag"}>{isPromo ? <><Flame size={12} /> SPECIAL</> : "HOUSE FAVORITE"}</span>
                     </div>
                     <div className="product-info">
                       <div className="product-title-line"><h3>{product.orderName}</h3><span>{peso(product.price)}</span></div>
-                      {supportsStock(product.orderName) && product.stock !== undefined && <strong className="product-stock">Stock: {product.stock}</strong>}
+                      {supportsStock(product.orderName) && <strong className="product-stock">Stock: {typeof product.stock === "number" ? product.stock : "Not set"}</strong>}
                       <p>{product.description}</p>
                       {isPromo && product.promoTo && <small className="promo-date">Promo through {formatDate(product.promoTo)}</small>}
-                      {!admin && <button className="order-button" onClick={() => requestOrder(product)}>Order this <ArrowRight size={15} /></button>}
+                      {!admin && <button className="order-button" onClick={() => requestOrder(product)} disabled={stockUnavailable}>
+                        {stockUnavailable ? product.stock === 0 ? "Out of stock" : "Unavailable" : "Order this"}
+                        {!stockUnavailable && <ArrowRight size={15} />}
+                      </button>}
                     </div>
                   </article>;
                 })}
@@ -1223,7 +1319,7 @@ export default function HomePage() {
 
       {logoutConfirmationOpen && <div className="overlay confirmation-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) setLogoutConfirmationOpen(false); }} onKeyDown={(event) => { if (event.key === "Escape") setLogoutConfirmationOpen(false); }}><section className="dialog confirmation-dialog" role="alertdialog" aria-modal="true" aria-labelledby="logout-title" aria-describedby="logout-description"><span className="confirmation-icon"><LogOut size={20} /></span><div className="dialog-kicker">CKB LECHON HOUSE</div><h2 id="logout-title">Logout Confirmation</h2><p id="logout-description">Are you sure you want to end your session?</p><div className="confirmation-actions"><button className="confirmation-keep" autoFocus onClick={() => setLogoutConfirmationOpen(false)}>Stay signed in</button><button className="confirmation-cancel" onClick={logout}>Log out</button></div></section></div>}
 
-      {orderProduct && <div className="overlay order-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) setOrderProduct(null); }}><section className="dialog order-dialog" role="dialog" aria-modal="true" aria-labelledby="pickup-title"><button className="dialog-close" onClick={() => setOrderProduct(null)} aria-label="Close"><X size={19} /></button><div className="order-dialog-photo" style={{ backgroundImage: `url("${orderProduct.imageUrl}")` }} /><div className="order-mobile-heading" aria-hidden="true"><div>MAKE IT A GATHERING</div><h2>Save your spot.</h2></div><div className="dialog-kicker">PLACE AN ORDER</div><h2 id="pickup-title">{orderProduct.name}</h2><p className="order-description">{orderProduct.description}</p><p className="order-summary"><span>Order total</span><strong>{peso(orderProduct.price * (Number(orderQuantity) || 0))}</strong></p><p className="order-mobile-summary"><strong>{orderProduct.name}</strong><span>{peso(orderProduct.price * (Number(orderQuantity) || 0))}</span></p><form className="auth-form" onSubmit={placeOrder}><label>Quantity{allowsDecimalQuantity(orderProduct.orderName) && " (decimal amounts allowed)"}<input type="number" min={allowsDecimalQuantity(orderProduct.orderName) ? 0.01 : 1} max="99" step={allowsDecimalQuantity(orderProduct.orderName) ? "any" : 1} required value={orderQuantity} onChange={(event) => setOrderQuantity(event.target.value)} /></label><div className="pickup-fields"><label>Pickup date<input required type="date" min={orderProduct.saleType === "promo" && orderProduct.promoFrom && orderProduct.promoFrom > today ? orderProduct.promoFrom : today} max={orderProduct.saleType === "promo" ? orderProduct.promoTo : undefined} value={pickupDate} onChange={(event) => setPickupDate(event.target.value)} /></label><label>Pickup time<input required type="time" value={pickupTime} onChange={(event) => setPickupTime(event.target.value)} /></label></div>{orderProduct.saleType === "promo" && <div className="pickup-note">Promo pickup dates: {formatDate(orderProduct.promoFrom ?? "")} – {formatDate(orderProduct.promoTo ?? "")}.</div>}{!signedIn && <div className="pickup-note">Sign in or try a preview to confirm your pickup.</div>}<button className="submit-button" disabled={busy || !isPickupDateEligible(orderProduct, pickupDate)}>{busy ? "Saving your pickup..." : "Confirm pickup"}<ArrowRight size={16} /></button></form></section></div>}
+      {orderProduct && <div className="overlay order-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) setOrderProduct(null); }}><section className="dialog order-dialog" role="dialog" aria-modal="true" aria-labelledby="pickup-title"><button className="dialog-close" onClick={() => setOrderProduct(null)} aria-label="Close"><X size={19} /></button><div className="order-dialog-photo" style={{ backgroundImage: `url("${orderProduct.imageUrl}")` }} /><div className="order-mobile-heading" aria-hidden="true"><div>MAKE IT A GATHERING</div><h2>Save your spot.</h2></div><div className="dialog-kicker">PLACE AN ORDER</div><h2 id="pickup-title">{orderProduct.name}</h2><p className="order-description">{orderProduct.description}</p><p className="order-summary"><span>Order total</span><strong>{peso(orderProduct.price * (Number(orderQuantity) || 0))}</strong></p><p className="order-mobile-summary"><strong>{orderProduct.name}</strong><span>{peso(orderProduct.price * (Number(orderQuantity) || 0))}</span></p><form className="auth-form" onSubmit={placeOrder}><label>Quantity{allowsDecimalQuantity(orderProduct.orderName) && " (decimal amounts allowed)"}<input type="number" min={allowsDecimalQuantity(orderProduct.orderName) ? 0.01 : 1} max={allowsDecimalQuantity(orderProduct.orderName) && typeof orderProduct.stock === "number" ? Math.min(99, orderProduct.stock) : 99} step={allowsDecimalQuantity(orderProduct.orderName) ? "any" : 1} required value={orderQuantity} onChange={(event) => setOrderQuantity(event.target.value)} /></label><div className="pickup-fields"><label>Pickup date<input required type="date" min={orderProduct.saleType === "promo" && orderProduct.promoFrom && orderProduct.promoFrom > today ? orderProduct.promoFrom : today} max={orderProduct.saleType === "promo" ? orderProduct.promoTo : undefined} value={pickupDate} onChange={(event) => setPickupDate(event.target.value)} /></label><label>Pickup time<input required type="time" value={pickupTime} onChange={(event) => setPickupTime(event.target.value)} /></label></div>{orderProduct.saleType === "promo" && <div className="pickup-note">Promo pickup dates: {formatDate(orderProduct.promoFrom ?? "")} – {formatDate(orderProduct.promoTo ?? "")}.</div>}{!signedIn && <div className="pickup-note">Sign in or try a preview to confirm your pickup.</div>}<button className="submit-button" disabled={busy || !isPickupDateEligible(orderProduct, pickupDate)}>{busy ? "Saving your pickup..." : "Confirm pickup"}<ArrowRight size={16} /></button></form></section></div>}
 
       {productDraft && <div className="overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) { setProductDraft(null); setEditingProduct(null); } }}><section className="dialog product-dialog" role="dialog" aria-modal="true" aria-labelledby="product-form-title"><button className="dialog-close" onClick={() => { setProductDraft(null); setEditingProduct(null); }} aria-label="Close"><X size={19} /></button><div className="dialog-kicker">THE CKB MENU</div><h2 id="product-form-title">{editingProduct ? "Edit menu item." : "Add something good."}</h2><form className="auth-form" onSubmit={saveProduct}><label>Order name<select required value={productDraft.orderName} onChange={(event) => setProductDraft({ ...productDraft, orderName: event.target.value as OrderName, name: event.target.value })}>{orderNames.map((orderName) => <option key={orderName} value={orderName}>{orderName}</option>)}</select></label><label>Description<textarea required rows={3} value={productDraft.description} onChange={(event) => setProductDraft({ ...productDraft, description: event.target.value })} /></label>{supportsStock(productDraft.orderName) && <label>Stock<input type="number" min="0" step="any" placeholder="Available stock" value={productDraft.stock ?? ""} onChange={(event) => setProductDraft({ ...productDraft, stock: event.target.value === "" ? undefined : Number(event.target.value) })} /></label>}<label>Price (₱)<input type="number" required min="0" step="0.01" value={productDraft.price || ""} onChange={(event) => setProductDraft({ ...productDraft, price: Number(event.target.value) })} /></label><label>Sale type<select value={productDraft.saleType} onChange={(event) => setProductDraft({ ...productDraft, saleType: event.target.value as Product["saleType"] })}><option value="regular">Regular</option><option value="promo">Promo</option></select></label>{productDraft.saleType === "promo" && <div className="name-fields"><label>Date From<input required type="date" max={productDraft.promoTo || undefined} value={productDraft.promoFrom || ""} onChange={(event) => setProductDraft({ ...productDraft, promoFrom: event.target.value })} /></label><label>Date To<input required type="date" min={productDraft.promoFrom || undefined} value={productDraft.promoTo || ""} onChange={(event) => setProductDraft({ ...productDraft, promoTo: event.target.value })} /></label></div>}<label>Upload image<input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => setImageFile(event.target.files?.[0] ?? null)} /></label>{!uploadThingConfigured && !demoMode && <div className="pickup-note">Configure the UploadThing Worker URL to enable image uploads.</div>}<button className="submit-button" disabled={busy}>{busy ? uploadingImage ? "Uploading image..." : "Saving..." : editingProduct ? "Save changes" : "Add to menu"}<ArrowRight size={16} /></button></form></section></div>}
     </main>
