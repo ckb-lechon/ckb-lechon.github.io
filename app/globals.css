@@ -292,6 +292,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .order-dialog > .order-description { margin: 0 0 14px; color: var(--muted); font-size: 11px; line-height: 1.6; }
 .order-dialog > .order-summary { margin: 0 0 17px; padding-bottom: 11px; display: flex; align-items: baseline; justify-content: space-between; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 11px; }
 .order-summary strong { color: var(--tomato); font-size: 12px; font-weight: 700; }
+.order-mobile-heading, .order-mobile-summary { display: none; }
 .pickup-note { padding: 9px; border-radius: 8px; color: #8a543e; background: #fff0e5; font-size: 10px; line-height: 1.5; }
 .product-dialog { width: min(100%, 500px); }
 
@@ -455,7 +456,19 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   .dialog > p { margin-bottom: 15px; }
   .auth-form { gap: 10px; }
   .auth-form input, .auth-form select, .auth-form textarea { min-height: 39px; font-size: 16px; }
-  .order-dialog-photo { height: 132px; margin: -24px -20px 17px; }
+  .order-dialog { width: 100%; padding: 20px 18px 18px; }
+  .order-dialog-photo { height: 132px; margin: -20px -18px 15px; }
+  .order-dialog > .dialog-kicker, .order-dialog > #pickup-title, .order-dialog > .order-description, .order-dialog > .order-summary { display: none; }
+  .order-mobile-heading { margin-bottom: 10px; display: block; }
+  .order-mobile-heading > div { color: #a25138; font-size: 8px; font-weight: 700; }
+  .order-mobile-heading h2 { margin: 7px 0 4px; font-size: 27px; line-height: 1.1; }
+  .order-mobile-summary { margin: 0 0 12px; padding-bottom: 10px; display: flex; align-items: baseline; justify-content: space-between; gap: 8px; border-bottom: 1px solid var(--line); }
+  .order-mobile-summary strong { min-width: 0; font-family: var(--serif); font-size: 15px; font-weight: 600; }
+  .order-mobile-summary span { flex-shrink: 0; color: var(--tomato); font-size: 13px; font-weight: 700; }
+  .order-dialog .auth-form > label { gap: 4px; }
+  .order-dialog .pickup-fields { gap: 9px; }
+  .order-dialog .pickup-fields input { padding-right: 5px; padding-left: 5px; }
+  .order-dialog .submit-button { min-height: 42px; }
   .product-dialog { width: 100%; }
   .toast { bottom: 12px; font-size: 9px; }
 }
