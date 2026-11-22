@@ -10,6 +10,7 @@ import {
 import {
   addDoc,
   collection,
+  deleteField,
   deleteDoc,
   doc,
   getDoc,
@@ -697,7 +698,12 @@ export default function HomePage() {
         setProducts(next);
         localStorage.setItem("ckb-demo-products", JSON.stringify(next));
       } else if (db && currentUser && admin) {
-        if (editingProduct) await updateDoc(doc(db, "products", id), data);
+        if (editingProduct) {
+          const updates = supportsStock(productDraft.orderName) && stock !== undefined
+            ? data
+            : { ...data, stock: deleteField() };
+          await updateDoc(doc(db, "products", id), updates);
+        }
         else await addDoc(productCollection(), data);
       } else {
         setNotice("Admin access is required to manage menu items.");
