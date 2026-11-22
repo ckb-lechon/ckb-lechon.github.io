@@ -60,9 +60,31 @@ const uploadThingConfigured = Boolean(uploadThingUrl);
 type CkbUploadRouter = { productImage: AnyFileRoute };
 const { uploadFiles } = generateReactHelpers<CkbUploadRouter>({ url: uploadThingUrl || "/api/uploadthing" });
 
+const orderNames = [
+  "Belly",
+  "Belly Bilao",
+  "Belly Bilao Food Package",
+  "Whole Lechon",
+  "Lechon Kinilo",
+  "Lechon Food Package",
+  "Karne Kinilo",
+] as const;
+type OrderName = (typeof orderNames)[number];
+
+function normalizeOrderName(value: string | undefined): OrderName {
+  const normalized = (value ?? "").trim().toLowerCase().replace(/[-_]/g, " ");
+  const exactMatch = orderNames.find((orderName) => orderName.toLowerCase() === normalized);
+  if (exactMatch) return exactMatch;
+  const partialMatch = [...orderNames]
+    .sort((left, right) => right.length - left.length)
+    .find((orderName) => normalized.includes(orderName.toLowerCase()));
+  return partialMatch ?? orderNames[0];
+}
+
 type Product = {
   id: string;
   name: string;
+  orderName: OrderName;
   description: string;
   price: number;
   saleType: "regular" | "promo";
@@ -272,9 +294,13 @@ export default function HomePage() {
     const productsQuery = admin ? productCollection() : query(productCollection(), where("active", "==", true));
     const stopProducts = onSnapshot(productsQuery, (snapshot) => {
       const list = snapshot.docs
-        .map((item) => ({ id: item.id, ...item.data() }) as Product)
+        .map((item) => {
+          const data = item.data() as Omit<Product, "id" | "orderName"> & { orderName?: string };
+          const orderName = normalizeOrderName(data.orderName ?? data.name);
+          return { id: item.id, ...data, name: orderName, orderName } as Product;
+        })
         .filter((item) => !retiredSampleProductIds.has(item.id) && (admin || item.active))
-        .sort((left, right) => left.name.localeCompare(right.name));
+        .sort((left, right) => orderNames.indexOf(left.orderName) - orderNames.indexOf(right.orderName) || left.name.localeCompare(right.name));
       setProducts(list);
     });
     let stopOrders: (() => void) | undefined;
@@ -477,7 +503,7 @@ export default function HomePage() {
           if (!imageUrl) throw new Error("The image uploaded, but its URL was not returned.");
         }
       }
-      const { id, ...data } = { ...productDraft, imageUrl, active: true };
+      const { id, ...data } = { ...productDraft, name: productDraft.orderName, imageUrl, active: true };
       if (demoMode) {
         const next = editingProduct ? products.map((item) => item.id === id ? { id, ...data } : item) : [...products, { id: crypto.randomUUID(), ...data }];
         setProducts(next);
@@ -621,7 +647,12 @@ export default function HomePage() {
       ? { firstName: "Alex", middleName: "", lastName: "Customer", suffix: "", address: "San Juan, Metro Manila", phone: "+639171234567", email: "alex@example.com" }
       : { firstName: "CKB", middleName: "", lastName: "Staff", suffix: "", address: "", phone: "", email: "" });
     const demoProducts = JSON.parse(localStorage.getItem("ckb-demo-products") || "[]") as Product[];
-    const currentProducts = demoProducts.filter((product) => !retiredSampleProductIds.has(product.id));
+    const currentProducts = demoProducts
+      .filter((product) => !retiredSampleProductIds.has(product.id))
+      .map((product) => {
+        const orderName = normalizeOrderName(product.orderName ?? product.name);
+        return { ...product, name: orderName, orderName };
+      });
     setProducts(currentProducts);
     localStorage.setItem("ckb-demo-products", JSON.stringify(currentProducts));
     setOrders(JSON.parse(localStorage.getItem("ckb-demo-orders") || "[]"));
@@ -630,7 +661,10 @@ export default function HomePage() {
   }
 
   function openProductForm(product?: Product) {
-    const item = product ?? { id: "", name: "", description: "", price: 0, saleType: "regular" as const, imageUrl: "", active: true };
+    const orderName = normalizeOrderName(product?.orderName ?? product?.name);
+    const item = product
+      ? { ...product, name: orderName, orderName }
+      : { id: "", name: orderName, orderName, description: "", price: 0, saleType: "regular" as const, imageUrl: "", active: true };
     setEditingProduct(product ?? null);
     setProductDraft({ ...item });
     setImageFile(null);
@@ -748,24 +782,32 @@ export default function HomePage() {
             <div><span className="eyebrow"><span className="eyebrow-line" /> Order na, presyong kaya.</span><h2>Special Menu</h2></div>
             <p>Fresh from our kitchen,<br />ready for your home.</p>
           </div>
-          <div className="product-grid">
-            {menuProducts.length === 0 && <div className="empty-menu">Our kitchen is adding something special. Check back soon.</div>}
-            {menuProducts.map((product, index) => {
-              const isPromo = product.saleType === "promo" && (!product.promoFrom || today >= product.promoFrom) && (!product.promoTo || today <= product.promoTo);
-              return <article className={`product-card product-card-${index % 3}`} key={product.id}>
-                <div className="product-image" style={{ backgroundImage: `url("${product.imageUrl}")` }}>
-                  <span className={isPromo ? "product-tag promo-tag" : "product-tag"}>{isPromo ? <><Flame size={12} /> SPECIAL</> : "HOUSE FAVORITE"}</span>
-                  <button className="product-heart" title="Order this item" onClick={() => requestOrder(product)}><ArrowUpRightIcon /></button>
-                </div>
-                <div className="product-info">
-                  <div className="product-title-line"><h3>{product.name}</h3><span>{peso(product.price)}</span></div>
-                  <p>{product.description}</p>
-                  {isPromo && product.promoTo && <small className="promo-date">Promo through {formatDate(product.promoTo)}</small>}
-                  {!admin && <button className="order-button" onClick={() => requestOrder(product)}>Order this <ArrowRight size={15} /></button>}
-                </div>
-              </article>;
-            })}
-          </div>
+          {menuProducts.length === 0 && <div className="empty-menu">Our kitchen is adding something special. Check back soon.</div>}
+          {orderNames.map((orderName) => {
+            const categoryProducts = menuProducts.filter((product) => product.orderName === orderName);
+            if (categoryProducts.length === 0) return null;
+            const categoryId = `menu-category-${orderNames.indexOf(orderName)}`;
+            return <section className="menu-category" key={orderName} aria-labelledby={categoryId}>
+              <h3 className="menu-category-heading" id={categoryId}>{orderName}</h3>
+              <div className="product-grid">
+                {categoryProducts.map((product, index) => {
+                  const isPromo = product.saleType === "promo" && (!product.promoFrom || today >= product.promoFrom) && (!product.promoTo || today <= product.promoTo);
+                  return <article className={`product-card product-card-${index % 3}`} key={product.id}>
+                    <div className="product-image" style={{ backgroundImage: `url("${product.imageUrl}")` }}>
+                      <span className={isPromo ? "product-tag promo-tag" : "product-tag"}>{isPromo ? <><Flame size={12} /> SPECIAL</> : "HOUSE FAVORITE"}</span>
+                      <button className="product-heart" title="Order this item" onClick={() => requestOrder(product)}><ArrowUpRightIcon /></button>
+                    </div>
+                    <div className="product-info">
+                      <div className="product-title-line"><h3>{product.orderName}</h3><span>{peso(product.price)}</span></div>
+                      <p>{product.description}</p>
+                      {isPromo && product.promoTo && <small className="promo-date">Promo through {formatDate(product.promoTo)}</small>}
+                      {!admin && <button className="order-button" onClick={() => requestOrder(product)}>Order this <ArrowRight size={15} /></button>}
+                    </div>
+                  </article>;
+                })}
+              </div>
+            </section>;
+          })}
         </section>
 
       </>}
@@ -806,7 +848,7 @@ export default function HomePage() {
         <div className="order-list-heading delivered-orders-heading"><div><h2>Delivered Orders</h2><span>Orders handed over to customers.</span></div></div>
         {deliveredOrders.length === 0 ? <div className="admin-empty">No delivered orders just yet.</div> : <div className="admin-order-list">{deliveredOrders.map(renderAdminOrder)}</div>}
         <div className="admin-products-heading"><div><h2>Menu items</h2><span>Manage what customers can order.</span></div></div>
-        <div className="admin-products-list">{products.map((product) => <article key={product.id}><div className="admin-product-photo" style={{ backgroundImage: `url("${product.imageUrl}")` }} /><div className="admin-product-copy"><strong>{product.name}</strong><span>{peso(product.price)} · {product.saleType === "promo" ? `Promo${product.promoFrom ? ` from ${formatDate(product.promoFrom)}` : ""}` : "Regular"}</span></div>{isPromoExpired(product, today) && <span className="expired-promo-label">Expired Promo</span>}<button className="edit-product" onClick={() => openProductForm(product)}>Edit</button><button className="remove-product" onClick={() => archiveProduct(product)}>Remove</button></article>)}</div>
+        <div className="admin-products-list">{products.map((product) => <article key={product.id}><div className="admin-product-photo" style={{ backgroundImage: `url("${product.imageUrl}")` }} /><div className="admin-product-copy"><strong>{product.orderName}</strong><span>{peso(product.price)} · {product.saleType === "promo" ? `Promo${product.promoFrom ? ` from ${formatDate(product.promoFrom)}` : ""}` : "Regular"}</span></div>{isPromoExpired(product, today) && <span className="expired-promo-label">Expired Promo</span>}<button className="edit-product" onClick={() => openProductForm(product)}>Edit</button><button className="remove-product" onClick={() => archiveProduct(product)}>Remove</button></article>)}</div>
       </section>}
 
       {activeTab === "users" && canManage && currentUser && <section className="dashboard-section admin-section">
@@ -879,7 +921,7 @@ export default function HomePage() {
 
       {orderProduct && <div className="overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) setOrderProduct(null); }}><section className="dialog order-dialog" role="dialog" aria-modal="true" aria-labelledby="pickup-title"><button className="dialog-close" onClick={() => setOrderProduct(null)} aria-label="Close"><X size={19} /></button><div className="order-dialog-photo" style={{ backgroundImage: `url("${orderProduct.imageUrl}")` }} /><div className="dialog-kicker">PLACE AN ORDER</div><h2 id="pickup-title">{orderProduct.name}</h2><p className="order-description">{orderProduct.description}</p><p className="order-summary"><span>Order total</span><strong>{peso(orderProduct.price * Math.max(1, orderQuantity))}</strong></p><form className="auth-form" onSubmit={placeOrder}><label>Quantity<input type="number" min={1} max={99} step={1} required value={orderQuantity} onChange={(event) => setOrderQuantity(event.target.value === "" ? 0 : Number(event.target.value))} /></label><label>Pickup date<input required type="date" min={today} value={pickupDate} onChange={(event) => setPickupDate(event.target.value)} /></label><label>Pickup time<input required type="time" min="09:00" max="18:00" step={60} value={pickupTime} onChange={(event) => setPickupTime(event.target.value)} /></label>{!signedIn && <div className="pickup-note">Sign in or try a preview to confirm your pickup.</div>}<button className="submit-button" disabled={busy}>{busy ? "Saving your pickup..." : "Confirm pickup"}<ArrowRight size={16} /></button></form></section></div>}
 
-      {productDraft && <div className="overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) { setProductDraft(null); setEditingProduct(null); } }}><section className="dialog product-dialog" role="dialog" aria-modal="true" aria-labelledby="product-form-title"><button className="dialog-close" onClick={() => { setProductDraft(null); setEditingProduct(null); }} aria-label="Close"><X size={19} /></button><div className="dialog-kicker">THE CKB MENU</div><h2 id="product-form-title">{editingProduct ? "Edit menu item." : "Add something good."}</h2><form className="auth-form" onSubmit={saveProduct}><label>Order name<input required value={productDraft.name} onChange={(event) => setProductDraft({ ...productDraft, name: event.target.value })} /></label><label>Description<textarea required rows={3} value={productDraft.description} onChange={(event) => setProductDraft({ ...productDraft, description: event.target.value })} /></label><label>Price (₱)<input type="number" required min="0" step="0.01" value={productDraft.price || ""} onChange={(event) => setProductDraft({ ...productDraft, price: Number(event.target.value) })} /></label><label>Sale type<select value={productDraft.saleType} onChange={(event) => setProductDraft({ ...productDraft, saleType: event.target.value as Product["saleType"] })}><option value="regular">Regular</option><option value="promo">Promo</option></select></label>{productDraft.saleType === "promo" && <div className="name-fields"><label>Date from<input required type="date" value={productDraft.promoFrom || ""} onChange={(event) => setProductDraft({ ...productDraft, promoFrom: event.target.value })} /></label><label>Date to<input required type="date" value={productDraft.promoTo || ""} onChange={(event) => setProductDraft({ ...productDraft, promoTo: event.target.value })} /></label></div>}<label>Upload image<input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => setImageFile(event.target.files?.[0] ?? null)} /></label>{!uploadThingConfigured && !demoMode && <div className="pickup-note">Configure the UploadThing Worker URL to enable image uploads.</div>}<button className="submit-button" disabled={busy}>{busy ? uploadingImage ? "Uploading image..." : "Saving..." : editingProduct ? "Save changes" : "Add to menu"}<ArrowRight size={16} /></button></form></section></div>}
+      {productDraft && <div className="overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) { setProductDraft(null); setEditingProduct(null); } }}><section className="dialog product-dialog" role="dialog" aria-modal="true" aria-labelledby="product-form-title"><button className="dialog-close" onClick={() => { setProductDraft(null); setEditingProduct(null); }} aria-label="Close"><X size={19} /></button><div className="dialog-kicker">THE CKB MENU</div><h2 id="product-form-title">{editingProduct ? "Edit menu item." : "Add something good."}</h2><form className="auth-form" onSubmit={saveProduct}><label>Order name<select required value={productDraft.orderName} onChange={(event) => setProductDraft({ ...productDraft, orderName: event.target.value as OrderName, name: event.target.value })}>{orderNames.map((orderName) => <option key={orderName} value={orderName}>{orderName}</option>)}</select></label><label>Description<textarea required rows={3} value={productDraft.description} onChange={(event) => setProductDraft({ ...productDraft, description: event.target.value })} /></label><label>Price (₱)<input type="number" required min="0" step="0.01" value={productDraft.price || ""} onChange={(event) => setProductDraft({ ...productDraft, price: Number(event.target.value) })} /></label><label>Sale type<select value={productDraft.saleType} onChange={(event) => setProductDraft({ ...productDraft, saleType: event.target.value as Product["saleType"] })}><option value="regular">Regular</option><option value="promo">Promo</option></select></label><label>Upload image<input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => setImageFile(event.target.files?.[0] ?? null)} /></label>{!uploadThingConfigured && !demoMode && <div className="pickup-note">Configure the UploadThing Worker URL to enable image uploads.</div>}<button className="submit-button" disabled={busy}>{busy ? uploadingImage ? "Uploading image..." : "Saving..." : editingProduct ? "Save changes" : "Add to menu"}<ArrowRight size={16} /></button></form></section></div>}
     </main>
   );
 }

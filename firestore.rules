@@ -6,6 +6,24 @@ service cloud.firestore {
       return signedIn()
         && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
+    function validProduct() {
+      return request.resource.data.orderName in [
+          'Belly',
+          'Belly Bilao',
+          'Belly Bilao Food Package',
+          'Whole Lechon',
+          'Lechon Kinilo',
+          'Lechon Food Package',
+          'Karne Kinilo'
+        ]
+        && request.resource.data.name == request.resource.data.orderName
+        && request.resource.data.description is string
+        && request.resource.data.price is number
+        && request.resource.data.price >= 0
+        && request.resource.data.saleType in ['regular', 'promo']
+        && request.resource.data.imageUrl is string
+        && request.resource.data.active is bool;
+    }
     function validOrder() {
       let product = get(/databases/$(database)/documents/products/$(request.resource.data.productId)).data;
       return request.resource.data.userId == request.auth.uid
@@ -37,7 +55,8 @@ service cloud.firestore {
 
     match /products/{productId} {
       allow read: if resource.data.active == true || isAdmin();
-      allow create, update, delete: if isAdmin();
+      allow create, update: if isAdmin() && validProduct();
+      allow delete: if isAdmin();
     }
 
     match /users/{userId} {
