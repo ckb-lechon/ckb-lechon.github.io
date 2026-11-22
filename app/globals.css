@@ -265,6 +265,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .auth-form input:focus, .auth-form select:focus, .auth-form textarea:focus { border-color: #d98f73; outline: 3px solid #ff960d80; outline-offset: 2px; }
 .auth-form textarea { resize: vertical; }
 .auth-form input::placeholder { color: #b89f93; }
+.pickup-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.pickup-fields label, .pickup-fields input { min-width: 0; }
+.pickup-fields input { padding-right: 8px; padding-left: 8px; }
 .password-form-field { min-width: 0; display: flex; flex-direction: column; gap: 5px; }
 .password-field { position: relative; display: flex; align-items: center; }
 .password-field input { padding-right: 44px; }
