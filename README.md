@@ -32,11 +32,11 @@ npm run deploy
 
 The app URL and UploadThing token are different settings. For local development, set `NEXT_PUBLIC_UPLOADTHING_URL=http://localhost:8787/api/uploadthing` in the project-root `.env.local`. Put `UPLOADTHING_TOKEN` and `FIREBASE_API_KEY` in `uploadthing-worker/.dev.vars` (copy `uploadthing-worker/.dev.vars.example`), then run `npm run dev` in `uploadthing-worker` alongside the Next.js app. Never put the UploadThing token in a `NEXT_PUBLIC_` variable.
 
-For production, deploy the Worker, then set `NEXT_PUBLIC_UPLOADTHING_URL` as a GitHub Actions repository variable to `https://<worker>.<your-workers-subdomain>.workers.dev/api/uploadthing`. Set `UPLOADTHING_TOKEN` and `FIREBASE_API_KEY` as Cloudflare Worker secrets. Rebuild/redeploy the site after setting the URL. The Worker validates the Firebase ID token, checks the server-managed admin profile, and accepts JPEG, PNG, or WebP images up to 8 MB.
+For production, deploy the Worker and set `UPLOADTHING_TOKEN` and `FIREBASE_API_KEY` as Cloudflare Worker secrets. The GitHub Pages workflow is configured to use `https://ckb-lechon-uploadthing.ps-taguibo-uploadthing-worker.workers.dev/api/uploadthing`; update that build URL if the upload Worker hostname changes. The Worker validates the Firebase ID token, checks the server-managed admin profile, and accepts JPEG, PNG, or WebP images up to 8 MB.
 
 ## GitHub Pages
 
-This project uses Next.js static export (`out/`), which is compatible with GitHub Pages. In repository settings, enable **Pages > GitHub Actions** and add the Worker URL as the `NEXT_PUBLIC_UPLOADTHING_URL` Actions variable. The workflow loads public Firebase web configuration from `.env.example`; pushing `main` deploys at `https://ckb-lechon.github.io`.
+This project uses Next.js static export (`out/`), which is compatible with GitHub Pages. In repository settings, enable **Pages > GitHub Actions**. The workflow loads public Firebase web configuration from `.env.example` and injects the dedicated UploadThing Worker URL; pushing `main` deploys at `https://ckb-lechon.github.io`.
 
 ## Cloudflare Workers
 

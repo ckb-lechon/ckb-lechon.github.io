@@ -27,7 +27,7 @@ jobs:
       - run: cp .env.example .env.local
       - run: npm run build
         env:
-          NEXT_PUBLIC_UPLOADTHING_URL: ${{ vars.NEXT_PUBLIC_UPLOADTHING_URL }}
+          NEXT_PUBLIC_UPLOADTHING_URL: https://ckb-lechon-uploadthing.ps-taguibo-uploadthing-worker.workers.dev/api/uploadthing
       - uses: actions/upload-pages-artifact@v3
         with:
           path: out
