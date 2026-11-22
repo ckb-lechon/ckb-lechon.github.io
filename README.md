@@ -52,4 +52,6 @@ If deploying through **Cloudflare Pages** instead, choose the **Next.js (Static 
 - `users`: name, address, phone, email, and the server-managed admin role.
 - `orders`: product snapshot, pickup slot, buyer details, payment status, and delivery status.
 
+After an admin marks an order delivered, Firestore rules prevent anyone from changing its delivery status or downpayment. Other permitted order updates, such as recording the final payment, remain available.
+
 Firebase Authentication email/password accounts should use a valid customer email address. Configure password policy and authorized domains in Firebase Console.

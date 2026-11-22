@@ -648,6 +648,14 @@ export default function HomePage() {
   }
 
   async function updateOrder(id: string, changes: Partial<CustomerOrder>) {
+    const order = orders.find((item) => item.id === id);
+    if (order?.status === "delivered" && (
+      ("status" in changes && changes.status !== "delivered")
+      || ("downpayment" in changes && changes.downpayment !== (order.downpayment ?? 0))
+    )) {
+      setNotice("Delivered orders cannot have their status or downpayment changed.");
+      return;
+    }
     if (demoMode) {
       const nextOrders = orders.map((item) => item.id === id ? { ...item, ...changes } : item);
       setOrders(nextOrders);
@@ -672,6 +680,11 @@ export default function HomePage() {
   }
 
   async function saveDownpayment(order: CustomerOrder, input: HTMLInputElement) {
+    if (order.status === "delivered") {
+      input.value = String(order.downpayment ?? 0);
+      setNotice("Delivered orders cannot have their status or downpayment changed.");
+      return;
+    }
     const enteredValue = input.value.trim();
     const amount = Number(enteredValue);
     if (!enteredValue || !Number.isFinite(amount) || amount < 0 || amount > order.total) {
@@ -845,7 +858,7 @@ export default function HomePage() {
   }
 
   function renderAdminOrder(order: CustomerOrder) {
-    return <article className="admin-order" key={order.id}><div className="admin-customer"><div><strong>{order.customer}</strong><span>{order.address}</span><a href={`tel:${order.phone}`}>{order.phone}</a></div></div><div className="admin-order-item"><div className="admin-order-photo" style={{ backgroundImage: `url("${order.imageUrl}")` }} /><div><strong>{order.productName}</strong><span>{order.quantity} {order.quantity === 1 ? "item" : "items"} · {peso(order.total)}</span></div></div><div className="admin-pickup"><span>PICKUP</span><strong>{formatDate(order.pickupDate)}</strong><span>{formatTime(order.pickupTime)}</span></div><label className="admin-downpayment"><span>DOWNPAYMENT</span><span className="downpayment-input">₱<input type="number" min="0" max={order.total} step="0.01" defaultValue={order.downpayment ?? 0} key={`${order.id}-${order.downpayment ?? 0}`} aria-label={`Downpayment for ${order.customer}`} onBlur={(event) => saveDownpayment(order, event.currentTarget)} /></span></label><div className="admin-balance"><span>BALANCE</span><strong>{peso(orderBalance(order))}</strong>{order.paymentStatus === "paid" ? <button className="payment-toggle paid" onClick={() => updateOrder(order.id, { paymentStatus: "due" })}>Fully paid</button> : orderBalance(order) === 0 ? <span className="payment-toggle paid">Fully paid</span> : <button className="payment-toggle" onClick={() => updateOrder(order.id, { paymentStatus: "paid" })}>Needs payment</button>}</div>{order.status === "cancelled" ? <button className="delivered-toggle cancelled" disabled>Cancelled</button> : <button className={order.status === "delivered" ? "delivered-toggle delivered" : "delivered-toggle"} onClick={() => updateOrder(order.id, order.status === "delivered" ? { status: "pending" } : { status: "delivered", deliveredAt: Date.now() })}>{order.status === "delivered" ? <><Check size={15} /> Delivered</> : "Mark delivered"}</button>}</article>;
+    return <article className="admin-order" key={order.id}><div className="admin-customer"><div><strong>{order.customer}</strong><span>{order.address}</span><a href={`tel:${order.phone}`}>{order.phone}</a></div></div><div className="admin-order-item"><div className="admin-order-photo" style={{ backgroundImage: `url("${order.imageUrl}")` }} /><div><strong>{order.productName}</strong><span>{order.quantity} {order.quantity === 1 ? "item" : "items"} · {peso(order.total)}</span></div></div><div className="admin-pickup"><span>PICKUP</span><strong>{formatDate(order.pickupDate)}</strong><span>{formatTime(order.pickupTime)}</span></div><div className="admin-downpayment"><span>DOWNPAYMENT</span>{order.status === "delivered" ? <span className="downpayment-value">{peso(order.downpayment ?? 0)}</span> : <label className="downpayment-input">₱<input type="number" min="0" max={order.total} step="0.01" defaultValue={order.downpayment ?? 0} key={`${order.id}-${order.downpayment ?? 0}`} aria-label={`Downpayment for ${order.customer}`} onBlur={(event) => saveDownpayment(order, event.currentTarget)} /></label>}</div><div className="admin-balance"><span>BALANCE</span><strong>{peso(orderBalance(order))}</strong>{order.paymentStatus === "paid" ? <button className="payment-toggle paid" onClick={() => updateOrder(order.id, { paymentStatus: "due" })}>Fully paid</button> : orderBalance(order) === 0 ? <span className="payment-toggle paid">Fully paid</span> : <button className="payment-toggle" onClick={() => updateOrder(order.id, { paymentStatus: "paid" })}>Needs payment</button>}</div>{order.status === "cancelled" ? <button className="delivered-toggle cancelled" disabled>Cancelled</button> : order.status === "delivered" ? <button className="delivered-toggle delivered" disabled><Check size={15} /> Delivered</button> : <button className="delivered-toggle" onClick={() => updateOrder(order.id, { status: "delivered", deliveredAt: Date.now() })}>Mark delivered</button>}</article>;
   }
 
   return (
