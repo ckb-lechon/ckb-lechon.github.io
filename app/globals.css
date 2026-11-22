@@ -276,9 +276,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .otp-help { margin: -4px 0 0; color: var(--muted); font-size: 10px; }
 .order-dialog { width: min(100%, 410px); }
 .order-dialog-photo { height: 157px; margin: -31px -31px 22px; background-color: #deaa7a; background-position: center; background-size: cover; }
-.order-summary { padding-bottom: 11px; display: flex; justify-content: space-between; border-bottom: 1px solid var(--line); }
-.order-summary strong { color: var(--ink); font-family: var(--serif); font-size: 16px; }
-.order-summary span { color: var(--tomato); font-size: 12px; font-weight: 700; }
+.order-dialog > .order-description { margin: 0 0 14px; color: var(--muted); font-size: 11px; line-height: 1.6; }
+.order-dialog > .order-summary { margin: 0 0 17px; padding-bottom: 11px; display: flex; align-items: baseline; justify-content: space-between; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 11px; }
+.order-summary strong { color: var(--tomato); font-size: 12px; font-weight: 700; }
 .pickup-note { padding: 9px; border-radius: 8px; color: #8a543e; background: #fff0e5; font-size: 10px; line-height: 1.5; }
 .product-dialog { width: min(100%, 500px); }
 
