@@ -369,7 +369,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   .mobile-contact-location svg { flex: 0 0 auto; color: #d98625; }
   .mobile-contact-facebook { display: flex; align-items: center; gap: 7px; }
   .mobile-contact-facebook > svg { flex: 0 0 auto; color: #1877f2; }
-  .mobile-contact-info a { color: #2868a8; font-weight: 700; text-underline-offset: 2px; }
+  .mobile-contact-info a { color: #2868a8; font-weight: 700; text-decoration: none; }
   .mobile-message-marquee { width: calc(100% + 34px); margin: 0 -17px 18px; padding: 8px 0; display: block; overflow: hidden; border-top: 1px solid #f0dfbd; border-bottom: 1px solid #f0dfbd; background: linear-gradient(90deg, #fff4dc, #fffaf2 50%, #fff1d5); }
   .mobile-message-description { width: 1px; height: 1px; position: absolute; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
   .mobile-message-track { width: max-content; display: flex; animation: mobile-message-scroll-right 15s linear infinite; will-change: transform; }
