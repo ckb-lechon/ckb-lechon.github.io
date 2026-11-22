@@ -919,10 +919,10 @@ export default function HomePage() {
             <p>Fresh from our kitchen,<br />ready for your home.</p>
           </div>
           {menuCategories.length > 0 && <div className="mobile-category-filter">
-            <label htmlFor="mobile-menu-category">Browse category</label>
             <div className="mobile-category-select-wrap">
               <select
                 id="mobile-menu-category"
+                aria-label="Browse category"
                 value={menuCategories.includes(activeMenuCategory as OrderName) ? activeMenuCategory : menuCategories[0]}
                 onChange={(event) => {
                   const orderName = event.target.value as OrderName;
