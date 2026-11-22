@@ -32,8 +32,8 @@ service cloud.firestore {
         && product.active == true
         && request.resource.data.productName == product.name
         && request.resource.data.imageUrl == product.imageUrl
-        && request.resource.data.quantity is int
-        && request.resource.data.quantity >= 1
+        && (request.resource.data.quantity is int || request.resource.data.quantity is float)
+        && request.resource.data.quantity >= 0.5
         && request.resource.data.quantity <= 99
         && request.resource.data.total == product.price * request.resource.data.quantity
         && (!request.resource.data.keys().hasAny(['downpayment']) || request.resource.data.downpayment == 0)
