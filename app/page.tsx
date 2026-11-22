@@ -664,7 +664,7 @@ export default function HomePage() {
   const canManage = Boolean(admin && (currentUser || demoMode));
   const signedIn = Boolean(currentUser || demoMode);
   const orderOwnerId = currentUser?.uid ?? (demoMode === "customer" ? "demo-customer" : null);
-  const myOrders = orderOwnerId ? orders.filter((order) => order.userId === orderOwnerId) : [];
+  const myOrders = orderOwnerId ? orders.filter((order) => order.userId === orderOwnerId && order.status !== "cancelled") : [];
   const todayKey = localDateKey(new Date());
   const todayTotalSold = orders.reduce((total, order) => {
     if (order.status !== "delivered") return total;
