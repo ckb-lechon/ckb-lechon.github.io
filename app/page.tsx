@@ -99,6 +99,7 @@ type Product = {
   name: string;
   orderName: OrderName;
   description: string;
+  stock?: number;
   price: number;
   saleType: "regular" | "promo";
   promoFrom?: string;
@@ -230,6 +231,10 @@ function isPickupDateEligible(product: Product, pickupDate: string) {
 }
 
 function allowsDecimalQuantity(orderName: OrderName) {
+  return orderName === "Lechon Kinilo" || orderName === "Karne Kinilo";
+}
+
+function supportsStock(orderName: OrderName) {
   return orderName === "Lechon Kinilo" || orderName === "Karne Kinilo";
 }
 
@@ -652,6 +657,11 @@ export default function HomePage() {
   async function saveProduct(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!productDraft) return;
+    if (supportsStock(productDraft.orderName) && productDraft.stock !== undefined
+      && (!Number.isFinite(productDraft.stock) || productDraft.stock < 0)) {
+      setNotice("Stock must be a non-negative number.");
+      return;
+    }
     if (productDraft.saleType === "promo" && (!productDraft.promoFrom || !productDraft.promoTo || productDraft.promoFrom > productDraft.promoTo)) {
       setNotice("Choose valid Date From and Date To values for this promo.");
       return;
@@ -674,7 +684,14 @@ export default function HomePage() {
           if (!imageUrl) throw new Error("The image uploaded, but its URL was not returned.");
         }
       }
-      const { id, ...data } = { ...productDraft, name: productDraft.orderName, imageUrl, active: true };
+      const { id, stock, ...draftData } = productDraft;
+      const data = {
+        ...draftData,
+        ...(supportsStock(productDraft.orderName) && stock !== undefined ? { stock } : {}),
+        name: productDraft.orderName,
+        imageUrl,
+        active: true,
+      };
       if (demoMode) {
         const next = editingProduct ? products.map((item) => item.id === id ? { id, ...data } : item) : [...products, { id: crypto.randomUUID(), ...data }];
         setProducts(next);
@@ -1201,7 +1218,7 @@ export default function HomePage() {
 
       {orderProduct && <div className="overlay order-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) setOrderProduct(null); }}><section className="dialog order-dialog" role="dialog" aria-modal="true" aria-labelledby="pickup-title"><button className="dialog-close" onClick={() => setOrderProduct(null)} aria-label="Close"><X size={19} /></button><div className="order-dialog-photo" style={{ backgroundImage: `url("${orderProduct.imageUrl}")` }} /><div className="order-mobile-heading" aria-hidden="true"><div>MAKE IT A GATHERING</div><h2>Save your spot.</h2></div><div className="dialog-kicker">PLACE AN ORDER</div><h2 id="pickup-title">{orderProduct.name}</h2><p className="order-description">{orderProduct.description}</p><p className="order-summary"><span>Order total</span><strong>{peso(orderProduct.price * (Number(orderQuantity) || 0))}</strong></p><p className="order-mobile-summary"><strong>{orderProduct.name}</strong><span>{peso(orderProduct.price * (Number(orderQuantity) || 0))}</span></p><form className="auth-form" onSubmit={placeOrder}><label>Quantity{allowsDecimalQuantity(orderProduct.orderName) && " (decimal amounts allowed)"}<input type="number" min={allowsDecimalQuantity(orderProduct.orderName) ? 0.01 : 1} max="99" step={allowsDecimalQuantity(orderProduct.orderName) ? "any" : 1} required value={orderQuantity} onChange={(event) => setOrderQuantity(event.target.value)} /></label><div className="pickup-fields"><label>Pickup date<input required type="date" min={orderProduct.saleType === "promo" && orderProduct.promoFrom && orderProduct.promoFrom > today ? orderProduct.promoFrom : today} max={orderProduct.saleType === "promo" ? orderProduct.promoTo : undefined} value={pickupDate} onChange={(event) => setPickupDate(event.target.value)} /></label><label>Pickup time<input required type="time" value={pickupTime} onChange={(event) => setPickupTime(event.target.value)} /></label></div>{orderProduct.saleType === "promo" && <div className="pickup-note">Promo pickup dates: {formatDate(orderProduct.promoFrom ?? "")} – {formatDate(orderProduct.promoTo ?? "")}.</div>}{!signedIn && <div className="pickup-note">Sign in or try a preview to confirm your pickup.</div>}<button className="submit-button" disabled={busy || !isPickupDateEligible(orderProduct, pickupDate)}>{busy ? "Saving your pickup..." : "Confirm pickup"}<ArrowRight size={16} /></button></form></section></div>}
 
-      {productDraft && <div className="overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) { setProductDraft(null); setEditingProduct(null); } }}><section className="dialog product-dialog" role="dialog" aria-modal="true" aria-labelledby="product-form-title"><button className="dialog-close" onClick={() => { setProductDraft(null); setEditingProduct(null); }} aria-label="Close"><X size={19} /></button><div className="dialog-kicker">THE CKB MENU</div><h2 id="product-form-title">{editingProduct ? "Edit menu item." : "Add something good."}</h2><form className="auth-form" onSubmit={saveProduct}><label>Order name<select required value={productDraft.orderName} onChange={(event) => setProductDraft({ ...productDraft, orderName: event.target.value as OrderName, name: event.target.value })}>{orderNames.map((orderName) => <option key={orderName} value={orderName}>{orderName}</option>)}</select></label><label>Description<textarea required rows={3} value={productDraft.description} onChange={(event) => setProductDraft({ ...productDraft, description: event.target.value })} /></label><label>Price (₱)<input type="number" required min="0" step="0.01" value={productDraft.price || ""} onChange={(event) => setProductDraft({ ...productDraft, price: Number(event.target.value) })} /></label><label>Sale type<select value={productDraft.saleType} onChange={(event) => setProductDraft({ ...productDraft, saleType: event.target.value as Product["saleType"] })}><option value="regular">Regular</option><option value="promo">Promo</option></select></label>{productDraft.saleType === "promo" && <div className="name-fields"><label>Date From<input required type="date" max={productDraft.promoTo || undefined} value={productDraft.promoFrom || ""} onChange={(event) => setProductDraft({ ...productDraft, promoFrom: event.target.value })} /></label><label>Date To<input required type="date" min={productDraft.promoFrom || undefined} value={productDraft.promoTo || ""} onChange={(event) => setProductDraft({ ...productDraft, promoTo: event.target.value })} /></label></div>}<label>Upload image<input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => setImageFile(event.target.files?.[0] ?? null)} /></label>{!uploadThingConfigured && !demoMode && <div className="pickup-note">Configure the UploadThing Worker URL to enable image uploads.</div>}<button className="submit-button" disabled={busy}>{busy ? uploadingImage ? "Uploading image..." : "Saving..." : editingProduct ? "Save changes" : "Add to menu"}<ArrowRight size={16} /></button></form></section></div>}
+      {productDraft && <div className="overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) { setProductDraft(null); setEditingProduct(null); } }}><section className="dialog product-dialog" role="dialog" aria-modal="true" aria-labelledby="product-form-title"><button className="dialog-close" onClick={() => { setProductDraft(null); setEditingProduct(null); }} aria-label="Close"><X size={19} /></button><div className="dialog-kicker">THE CKB MENU</div><h2 id="product-form-title">{editingProduct ? "Edit menu item." : "Add something good."}</h2><form className="auth-form" onSubmit={saveProduct}><label>Order name<select required value={productDraft.orderName} onChange={(event) => setProductDraft({ ...productDraft, orderName: event.target.value as OrderName, name: event.target.value })}>{orderNames.map((orderName) => <option key={orderName} value={orderName}>{orderName}</option>)}</select></label><label>Description<textarea required rows={3} value={productDraft.description} onChange={(event) => setProductDraft({ ...productDraft, description: event.target.value })} /></label>{supportsStock(productDraft.orderName) && <label>Stock<input type="number" min="0" step="any" placeholder="Available stock" value={productDraft.stock ?? ""} onChange={(event) => setProductDraft({ ...productDraft, stock: event.target.value === "" ? undefined : Number(event.target.value) })} /></label>}<label>Price (₱)<input type="number" required min="0" step="0.01" value={productDraft.price || ""} onChange={(event) => setProductDraft({ ...productDraft, price: Number(event.target.value) })} /></label><label>Sale type<select value={productDraft.saleType} onChange={(event) => setProductDraft({ ...productDraft, saleType: event.target.value as Product["saleType"] })}><option value="regular">Regular</option><option value="promo">Promo</option></select></label>{productDraft.saleType === "promo" && <div className="name-fields"><label>Date From<input required type="date" max={productDraft.promoTo || undefined} value={productDraft.promoFrom || ""} onChange={(event) => setProductDraft({ ...productDraft, promoFrom: event.target.value })} /></label><label>Date To<input required type="date" min={productDraft.promoFrom || undefined} value={productDraft.promoTo || ""} onChange={(event) => setProductDraft({ ...productDraft, promoTo: event.target.value })} /></label></div>}<label>Upload image<input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => setImageFile(event.target.files?.[0] ?? null)} /></label>{!uploadThingConfigured && !demoMode && <div className="pickup-note">Configure the UploadThing Worker URL to enable image uploads.</div>}<button className="submit-button" disabled={busy}>{busy ? uploadingImage ? "Uploading image..." : "Saving..." : editingProduct ? "Save changes" : "Add to menu"}<ArrowRight size={16} /></button></form></section></div>}
     </main>
   );
 }
