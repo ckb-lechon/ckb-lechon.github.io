@@ -195,6 +195,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .admin-product-copy { flex: 1; display: flex; flex-direction: column; gap: 3px; }
 .admin-product-copy strong { font-family: var(--serif); font-size: 14px; }
 .admin-product-copy span { color: var(--muted); font-size: 10px; }
+.expired-promo-label { flex-shrink: 0; padding: 5px 8px; border: 1px solid #f0d4cf; border-radius: 8px; color: #a34535; background: #fce6e0; font-size: 9px; font-weight: 700; white-space: nowrap; }
 .edit-product, .remove-product { padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; background: #fff9f5; font-size: 10px; font-weight: 600; }
 .remove-product { border-color: #f0d4cf; color: #a34535; }
 
@@ -414,6 +415,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   .admin-product-photo { width: 38px; height: 38px; }
   .admin-product-copy strong { font-size: 12px; }
   .admin-product-copy span { font-size: 8px; }
+  .expired-promo-label { padding: 4px 5px; font-size: 7px; }
   .edit-product, .remove-product { padding: 6px 7px; font-size: 8px; }
   .site-footer { min-height: 75px; padding: 13px 16px; gap: 8px; }
   .footer-brand { gap: 7px; }
