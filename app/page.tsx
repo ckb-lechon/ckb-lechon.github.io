@@ -72,6 +72,12 @@ const orderNames = [
   "Lechon Food Package",
   "Karne Kinilo",
 ] as const;
+const mobileMenuMessages = [
+  "Lami kaayo barato pa gyud.",
+  "Walay kahumanan nga promo.",
+  "Located ra deay sa P-11 Obrero.",
+  "Pwede maka-Maxim sa order.",
+] as const;
 type OrderName = (typeof orderNames)[number];
 
 function normalizeOrderName(value: string | undefined): OrderName {
@@ -993,6 +999,12 @@ export default function HomePage() {
         </section>
 
         <section className="menu-section" id="menu">
+          <div className="mobile-message-marquee">
+            <p className="mobile-message-description">Menu updates: {mobileMenuMessages.join(" ")}</p>
+            <div className="mobile-message-track" aria-hidden="true">
+              {[0, 1].map((copy) => <div className="mobile-message-group" key={copy}>{mobileMenuMessages.map((message) => <span className="mobile-message" key={message}><span className="mobile-message-spark">✦</span>{message}</span>)}</div>)}
+            </div>
+          </div>
           <div className="section-heading">
             <div><span className="eyebrow"><span className="eyebrow-line" /> Order na, presyong kaya.</span><h2>Special Menu</h2></div>
             <p>Fresh from our kitchen,<br />ready for your home.</p>

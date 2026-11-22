@@ -66,6 +66,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .hero-sun { position: absolute; right: 42%; top: 32px; z-index: -1; width: 98px; height: 98px; display: grid; place-items: center; border-radius: 50%; color: #9a4433; background: var(--blush); box-shadow: inset 4px 5px 9px white, inset -5px -5px 10px #e9b7ac; font-family: var(--serif); font-size: 18px; font-weight: 700; transform: rotate(10deg); }
 
 .menu-section { max-width: 1190px; margin: 0 auto; padding: 30px 6% 85px; }
+.mobile-message-marquee { display: none; }
 .section-heading { margin-bottom: 26px; display: flex; align-items: flex-end; justify-content: space-between; }
 .section-heading h2, .order-list-heading h2, .admin-products-heading h2 { margin: 8px 0 0; font-family: var(--serif); font-size: 34px; font-weight: 600; }
 .section-heading > p { margin: 0 4% 5px 0; color: var(--muted); font-size: 12px; line-height: 1.6; }
@@ -318,6 +319,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 @keyframes rise-in { from { opacity: 0; transform: translateY(11px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes settle-in { from { opacity: 0; transform: translate(10px, 8px) rotate(5deg); } to { opacity: 1; transform: translate(0, 0) rotate(2deg); } }
 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes mobile-message-scroll-right { from { transform: translateX(-50%); } to { transform: translateX(0); } }
 
 @media (min-width: 1450px) { .hero { min-height: 485px; } }
 @media (max-width: 900px) {
@@ -361,6 +363,12 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   .hero-side-note { display: none; }
   .hero-sun { top: 35px; right: 21px; width: 47px; height: 47px; font-size: 11px; }
   .menu-section { padding: 28px 17px 45px; }
+  .mobile-message-marquee { width: calc(100% + 34px); margin: 0 -17px 18px; padding: 8px 0; display: block; overflow: hidden; border-top: 1px solid #f0dfbd; border-bottom: 1px solid #f0dfbd; background: linear-gradient(90deg, #fff4dc, #fffaf2 50%, #fff1d5); }
+  .mobile-message-description { width: 1px; height: 1px; position: absolute; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
+  .mobile-message-track { width: max-content; display: flex; animation: mobile-message-scroll-right 15s linear infinite; will-change: transform; }
+  .mobile-message-group { display: flex; flex: 0 0 auto; align-items: center; }
+  .mobile-message { min-height: 28px; padding: 0 15px; display: inline-flex; align-items: center; gap: 7px; border-right: 1px solid #ead7b5; color: #765023; font-size: 10px; font-weight: 600; white-space: nowrap; }
+  .mobile-message-spark { color: #d99a34; font-size: 13px; }
   .section-heading { margin-bottom: 17px; }
   .section-heading h2 { margin-top: 5px; font-size: 29px; }
   .section-heading > p { margin: 0 0 3px; font-size: 10px; }
