@@ -171,6 +171,11 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .order-list-heading h2, .admin-products-heading h2 { font-size: 23px; }
 .order-list-heading > div > span, .admin-products-heading > div > span { color: var(--muted); font-size: 10px; }
 .order-list-heading select { min-height: 35px; padding: 0 10px; border: 1px solid var(--line); border-radius: 9px; color: #745a50; background: #fffaf6; font-size: 10px; }
+.delivered-order-filters { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; }
+.delivered-order-filters label { min-width: 145px; display: flex; flex-direction: column; gap: 4px; color: #76594e; font-size: 9px; font-weight: 700; }
+.delivered-order-filters input { width: 100%; min-height: 35px; padding: 0 9px; border: 1px solid var(--line); border-radius: 9px; color: #745a50; background: #fffaf6; font: inherit; font-weight: 500; }
+.delivered-filter-clear { min-height: 35px; padding: 0 10px; border: 1px solid var(--line); border-radius: 9px; color: #8b3925; background: #fffaf6; font-size: 9px; font-weight: 700; }
+.delivered-filter-clear:hover { border-color: #e8a88f; background: #fff0e8; }
 .admin-order-list { display: grid; gap: 8px; }
 .admin-order { min-height: 93px; padding: 12px; display: grid; grid-template-columns: 1.2fr 1.08fr .8fr .7fr .7fr auto; align-items: center; gap: 12px; border: 1px solid #f0e2d9; border-radius: 13px; background: #fffaf6; box-shadow: 3px 4px 9px #9a48220e, inset 1px 2px 4px white; }
 .admin-customer { min-width: 0; display: flex; align-items: center; }
@@ -406,6 +411,10 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   .order-list-heading { align-items: flex-end; gap: 8px; }
   .order-list-heading h2, .admin-products-heading h2 { font-size: 20px; }
   .delivered-orders-heading { margin-top: 28px; }
+  .delivered-orders-heading { align-items: flex-start; flex-direction: column; }
+  .delivered-order-filters { width: 100%; align-items: flex-end; }
+  .delivered-order-filters label { min-width: 0; flex: 1 1 125px; }
+  .delivered-order-filters input, .delivered-filter-clear { min-height: 34px; font-size: 10px; }
   .order-list-heading > div > span, .admin-products-heading > div > span { font-size: 8px; }
   .order-list-heading select { min-height: 31px; max-width: 134px; padding: 0 6px; font-size: 8px; }
   .admin-order { padding: 10px; grid-template-columns: 1fr 1fr; gap: 10px 8px; }

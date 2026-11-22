@@ -205,6 +205,12 @@ function orderBalance(order: CustomerOrder) {
   return order.paymentStatus === "paid" ? 0 : Math.max(0, order.total - (order.downpayment ?? 0));
 }
 
+function deliveredDateKey(order: CustomerOrder) {
+  return typeof order.deliveredAt === "number" && Number.isFinite(order.deliveredAt)
+    ? manilaDateKey(new Date(order.deliveredAt))
+    : order.pickupDate;
+}
+
 function isPromoExpired(product: Product, dateKey: string) {
   return product.saleType === "promo" && Boolean(product.promoTo && dateKey > product.promoTo);
 }
@@ -253,6 +259,8 @@ export default function HomePage() {
   const [pickupDate, setPickupDate] = useState("");
   const [pickupTime, setPickupTime] = useState("");
   const [dateFilter, setDateFilter] = useState("all");
+  const [deliveredDateFilter, setDeliveredDateFilter] = useState("");
+  const [deliveredMonthFilter, setDeliveredMonthFilter] = useState("");
   const [uploadingImage, setUploadingImage] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [today, setToday] = useState("");
@@ -795,6 +803,11 @@ export default function HomePage() {
   const deliveredOrders = orders
     .filter((order) => order.status === "delivered")
     .sort((left, right) => (right.deliveredAt ?? right.createdAt) - (left.deliveredAt ?? left.createdAt));
+  const filteredDeliveredOrders = deliveredOrders.filter((order) => {
+    const dateKey = deliveredDateKey(order);
+    return (!deliveredDateFilter || dateKey === deliveredDateFilter)
+      && (!deliveredMonthFilter || dateKey.slice(0, 7) === deliveredMonthFilter);
+  });
   const filteredOrders = orders.filter((order) => order.status !== "delivered" && (dateFilter === "all" || (dateFilter === "pending" ? order.status === "pending" : orderBalance(order) > 0)));
   const signedIn = Boolean(currentUser || demoMode);
   const orderOwnerId = currentUser?.uid ?? (demoMode === "customer" ? "demo-customer" : null);
@@ -802,7 +815,7 @@ export default function HomePage() {
   const todayKey = localDateKey(new Date());
   const selectedDateTotalSold = orders.reduce((total, order) => {
     if (order.status !== "delivered") return total;
-    const deliveredDate = order.deliveredAt ? manilaDateKey(new Date(order.deliveredAt)) : order.pickupDate;
+    const deliveredDate = deliveredDateKey(order);
     return deliveredDate === selectedPickupDate ? total + order.total : total;
   }, 0);
   const [calendarYear, calendarMonthNumber] = calendarMonth.split("-").map(Number);
@@ -961,8 +974,19 @@ export default function HomePage() {
         <div className="admin-metrics"><div><span>ALL ORDERS</span><strong>{orders.length.toString().padStart(2, "0")}</strong><PackageCheck size={17} /></div><div><span>NEEDS PAYMENT</span><strong>{orders.filter((item) => item.status !== "cancelled" && orderBalance(item) > 0).length.toString().padStart(2, "0")}</strong><CircleHelp size={17} /></div><div><span>READY TO PICK UP</span><strong>{orders.filter((item) => item.status === "pending").length.toString().padStart(2, "0")}</strong><Clock3 size={17} /></div><div><span>TOTAL SOLD</span><strong>{peso(selectedDateTotalSold)}</strong><Banknote size={17} /></div></div>
         <div className="order-list-heading"><div><h2>The pickup list</h2><span>Customer orders, all in one place.</span></div><select aria-label="Filter orders" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)}><option value="all">All orders</option><option value="pending">Not yet delivered</option><option value="due">Needs full payment</option></select></div>
         {filteredOrders.length === 0 ? <div className="admin-empty">No pickup orders match this filter.</div> : <div className="admin-order-list">{filteredOrders.map(renderAdminOrder)}</div>}
-        <div className="order-list-heading delivered-orders-heading"><div><h2>Delivered Orders</h2><span>Orders handed over to customers.</span></div></div>
-        {deliveredOrders.length === 0 ? <div className="admin-empty">No delivered orders just yet.</div> : <div className="admin-order-list">{deliveredOrders.map(renderAdminOrder)}</div>}
+        <div className="order-list-heading delivered-orders-heading">
+          <div><h2>Delivered Orders</h2><span>Orders handed over to customers.</span></div>
+          <div className="delivered-order-filters">
+            <label>Specific date<input type="date" aria-label="Filter delivered orders by specific date" value={deliveredDateFilter} onChange={(event) => setDeliveredDateFilter(event.target.value)} /></label>
+            <label>Month and year<input type="month" aria-label="Filter delivered orders by month and year" value={deliveredMonthFilter} onChange={(event) => setDeliveredMonthFilter(event.target.value)} /></label>
+            {(deliveredDateFilter || deliveredMonthFilter) && <button type="button" className="delivered-filter-clear" onClick={() => { setDeliveredDateFilter(""); setDeliveredMonthFilter(""); }}>Clear filters</button>}
+          </div>
+        </div>
+        {deliveredOrders.length === 0
+          ? <div className="admin-empty">No delivered orders just yet.</div>
+          : filteredDeliveredOrders.length === 0
+            ? <div className="admin-empty">No delivered orders match these filters.</div>
+            : <div className="admin-order-list">{filteredDeliveredOrders.map(renderAdminOrder)}</div>}
         <div className="admin-products-heading"><div><h2>Menu items</h2><span>Manage what customers can order.</span></div></div>
         {products.length === 0 ? <div className="admin-empty">No active menu items. Add an item to make it available to customers.</div> : <div className="admin-products-list">{products.map((product) => <article key={product.id}><div className="admin-product-photo" style={{ backgroundImage: `url("${product.imageUrl}")` }} /><div className="admin-product-copy"><strong>{product.orderName}</strong><span>{peso(product.price)} · {product.saleType === "promo" ? `Promo${product.promoFrom ? ` from ${formatDate(product.promoFrom)}` : ""}` : "Regular"}</span></div>{isPromoExpired(product, today) && <span className="expired-promo-label">Expired Promo</span>}<button className="edit-product" onClick={() => openProductForm(product)}>Edit</button><button className="remove-product" onClick={() => deleteProduct(product)} disabled={removingProductId === product.id}>{removingProductId === product.id ? "Deleting…" : "Remove"}</button></article>)}</div>}
       </section>}
