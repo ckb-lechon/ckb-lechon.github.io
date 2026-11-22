@@ -31,7 +31,7 @@ service cloud.firestore {
         && request.resource.data.imageUrl is string
         && request.resource.data.active is bool;
     }
-    function allowsFractionalQuantity(orderName) {
+    function allowsDecimalQuantity(orderName) {
       return orderName in ['Lechon Kinilo', 'Karne Kinilo'];
     }
     function validOrder() {
@@ -45,11 +45,10 @@ service cloud.firestore {
         && request.resource.data.productName == product.name
         && request.resource.data.imageUrl == product.imageUrl
         && quantity <= 99
-        && ((allowsFractionalQuantity(orderName)
+        && ((allowsDecimalQuantity(orderName)
             && (quantity is int || quantity is float)
-            && quantity >= 0.5
-            && quantity % 0.5 == 0)
-          || (!allowsFractionalQuantity(orderName)
+            && quantity >= 0.01)
+          || (!allowsDecimalQuantity(orderName)
             && quantity is int
             && quantity >= 1))
         && request.resource.data.total == product.price * request.resource.data.quantity
