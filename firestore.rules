@@ -44,6 +44,11 @@ service cloud.firestore {
         && product.active == true
         && request.resource.data.productName == product.name
         && request.resource.data.imageUrl == product.imageUrl
+        && request.resource.data.pickupDate is string
+        && request.resource.data.pickupDate.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && (product.get('saleType', 'regular') != 'promo'
+          || (request.resource.data.pickupDate >= product.promoFrom
+            && request.resource.data.pickupDate <= product.promoTo))
         && quantity <= 99
         && ((allowsDecimalQuantity(orderName)
             && (quantity is int || quantity is float)
