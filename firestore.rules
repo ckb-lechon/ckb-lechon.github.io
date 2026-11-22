@@ -31,17 +31,27 @@ service cloud.firestore {
         && request.resource.data.imageUrl is string
         && request.resource.data.active is bool;
     }
+    function allowsFractionalQuantity(orderName) {
+      return orderName in ['Lechon Kinilo', 'Karne Kinilo'];
+    }
     function validOrder() {
       let product = get(/databases/$(database)/documents/products/$(request.resource.data.productId)).data;
+      let quantity = request.resource.data.quantity;
+      let orderName = product.get('orderName', product.name);
       return request.resource.data.userId == request.auth.uid
         && request.resource.data.status == 'pending'
         && request.resource.data.paymentStatus == 'due'
         && product.active == true
         && request.resource.data.productName == product.name
         && request.resource.data.imageUrl == product.imageUrl
-        && (request.resource.data.quantity is int || request.resource.data.quantity is float)
-        && request.resource.data.quantity >= 0.5
-        && request.resource.data.quantity <= 99
+        && quantity <= 99
+        && ((allowsFractionalQuantity(orderName)
+            && (quantity is int || quantity is float)
+            && quantity >= 0.5
+            && quantity % 0.5 == 0)
+          || (!allowsFractionalQuantity(orderName)
+            && quantity is int
+            && quantity >= 1))
         && request.resource.data.total == product.price * request.resource.data.quantity
         && (!request.resource.data.keys().hasAny(['downpayment']) || request.resource.data.downpayment == 0)
         && request.resource.data.createdAt is int

@@ -209,11 +209,15 @@ function isPromoExpired(product: Product, dateKey: string) {
   return product.saleType === "promo" && Boolean(product.promoTo && dateKey > product.promoTo);
 }
 
-function isValidOrderQuantity(quantity: number) {
-  return Number.isFinite(quantity)
-    && quantity >= 0.5
-    && quantity <= 99
-    && Number.isInteger(quantity * 2);
+function allowsFractionalQuantity(orderName: OrderName) {
+  return orderName === "Lechon Kinilo" || orderName === "Karne Kinilo";
+}
+
+function isValidOrderQuantity(quantity: number, allowFractions: boolean) {
+  if (!Number.isFinite(quantity) || quantity > 99) return false;
+  return allowFractions
+    ? quantity >= 0.5 && Number.isInteger(quantity * 2)
+    : quantity >= 1 && Number.isInteger(quantity);
 }
 
 export default function HomePage() {
@@ -513,8 +517,11 @@ export default function HomePage() {
       setNotice("This promo has ended and is no longer available.");
       return;
     }
-    if (!isValidOrderQuantity(quantity)) {
-      setNotice("Choose a quantity from 0.5 to 99 in 0.5 increments.");
+    const allowFractionalQuantity = allowsFractionalQuantity(orderProduct.orderName);
+    if (!isValidOrderQuantity(quantity, allowFractionalQuantity)) {
+      setNotice(allowFractionalQuantity
+        ? "Choose a quantity from 0.5 to 99 in 0.5 increments."
+        : "Choose a whole quantity from 1 to 99.");
       return;
     }
     const order: Omit<CustomerOrder, "id"> = {
@@ -1028,7 +1035,7 @@ export default function HomePage() {
 
       {logoutConfirmationOpen && <div className="overlay confirmation-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) setLogoutConfirmationOpen(false); }} onKeyDown={(event) => { if (event.key === "Escape") setLogoutConfirmationOpen(false); }}><section className="dialog confirmation-dialog" role="alertdialog" aria-modal="true" aria-labelledby="logout-title" aria-describedby="logout-description"><span className="confirmation-icon"><LogOut size={20} /></span><div className="dialog-kicker">CKB LECHON HOUSE</div><h2 id="logout-title">Logout Confirmation</h2><p id="logout-description">Are you sure you want to end your session?</p><div className="confirmation-actions"><button className="confirmation-keep" autoFocus onClick={() => setLogoutConfirmationOpen(false)}>Stay signed in</button><button className="confirmation-cancel" onClick={logout}>Log out</button></div></section></div>}
 
-      {orderProduct && <div className="overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) setOrderProduct(null); }}><section className="dialog order-dialog" role="dialog" aria-modal="true" aria-labelledby="pickup-title"><button className="dialog-close" onClick={() => setOrderProduct(null)} aria-label="Close"><X size={19} /></button><div className="order-dialog-photo" style={{ backgroundImage: `url("${orderProduct.imageUrl}")` }} /><div className="dialog-kicker">PLACE AN ORDER</div><h2 id="pickup-title">{orderProduct.name}</h2><p className="order-description">{orderProduct.description}</p><p className="order-summary"><span>Order total</span><strong>{peso(orderProduct.price * (Number(orderQuantity) || 0))}</strong></p><form className="auth-form" onSubmit={placeOrder}><label>Quantity (0.5 increments)<input type="number" min="0.5" max="99" step="0.5" required value={orderQuantity} onChange={(event) => setOrderQuantity(event.target.value)} /></label><label>Pickup date<input required type="date" min={today} value={pickupDate} onChange={(event) => setPickupDate(event.target.value)} /></label><label>Pickup time<input required type="time" min="09:00" max="18:00" step={60} value={pickupTime} onChange={(event) => setPickupTime(event.target.value)} /></label>{!signedIn && <div className="pickup-note">Sign in or try a preview to confirm your pickup.</div>}<button className="submit-button" disabled={busy}>{busy ? "Saving your pickup..." : "Confirm pickup"}<ArrowRight size={16} /></button></form></section></div>}
+      {orderProduct && <div className="overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) setOrderProduct(null); }}><section className="dialog order-dialog" role="dialog" aria-modal="true" aria-labelledby="pickup-title"><button className="dialog-close" onClick={() => setOrderProduct(null)} aria-label="Close"><X size={19} /></button><div className="order-dialog-photo" style={{ backgroundImage: `url("${orderProduct.imageUrl}")` }} /><div className="dialog-kicker">PLACE AN ORDER</div><h2 id="pickup-title">{orderProduct.name}</h2><p className="order-description">{orderProduct.description}</p><p className="order-summary"><span>Order total</span><strong>{peso(orderProduct.price * (Number(orderQuantity) || 0))}</strong></p><form className="auth-form" onSubmit={placeOrder}><label>Quantity{allowsFractionalQuantity(orderProduct.orderName) && " (0.5 increments)"}<input type="number" min={allowsFractionalQuantity(orderProduct.orderName) ? 0.5 : 1} max="99" step={allowsFractionalQuantity(orderProduct.orderName) ? 0.5 : 1} required value={orderQuantity} onChange={(event) => setOrderQuantity(event.target.value)} /></label><label>Pickup date<input required type="date" min={today} value={pickupDate} onChange={(event) => setPickupDate(event.target.value)} /></label><label>Pickup time<input required type="time" min="09:00" max="18:00" step={60} value={pickupTime} onChange={(event) => setPickupTime(event.target.value)} /></label>{!signedIn && <div className="pickup-note">Sign in or try a preview to confirm your pickup.</div>}<button className="submit-button" disabled={busy}>{busy ? "Saving your pickup..." : "Confirm pickup"}<ArrowRight size={16} /></button></form></section></div>}
 
       {productDraft && <div className="overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) { setProductDraft(null); setEditingProduct(null); } }}><section className="dialog product-dialog" role="dialog" aria-modal="true" aria-labelledby="product-form-title"><button className="dialog-close" onClick={() => { setProductDraft(null); setEditingProduct(null); }} aria-label="Close"><X size={19} /></button><div className="dialog-kicker">THE CKB MENU</div><h2 id="product-form-title">{editingProduct ? "Edit menu item." : "Add something good."}</h2><form className="auth-form" onSubmit={saveProduct}><label>Order name<select required value={productDraft.orderName} onChange={(event) => setProductDraft({ ...productDraft, orderName: event.target.value as OrderName, name: event.target.value })}>{orderNames.map((orderName) => <option key={orderName} value={orderName}>{orderName}</option>)}</select></label><label>Description<textarea required rows={3} value={productDraft.description} onChange={(event) => setProductDraft({ ...productDraft, description: event.target.value })} /></label><label>Price (₱)<input type="number" required min="0" step="0.01" value={productDraft.price || ""} onChange={(event) => setProductDraft({ ...productDraft, price: Number(event.target.value) })} /></label><label>Sale type<select value={productDraft.saleType} onChange={(event) => setProductDraft({ ...productDraft, saleType: event.target.value as Product["saleType"] })}><option value="regular">Regular</option><option value="promo">Promo</option></select></label>{productDraft.saleType === "promo" && <div className="name-fields"><label>Date From<input required type="date" max={productDraft.promoTo || undefined} value={productDraft.promoFrom || ""} onChange={(event) => setProductDraft({ ...productDraft, promoFrom: event.target.value })} /></label><label>Date To<input required type="date" min={productDraft.promoFrom || undefined} value={productDraft.promoTo || ""} onChange={(event) => setProductDraft({ ...productDraft, promoTo: event.target.value })} /></label></div>}<label>Upload image<input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => setImageFile(event.target.files?.[0] ?? null)} /></label>{!uploadThingConfigured && !demoMode && <div className="pickup-note">Configure the UploadThing Worker URL to enable image uploads.</div>}<button className="submit-button" disabled={busy}>{busy ? uploadingImage ? "Uploading image..." : "Saving..." : editingProduct ? "Save changes" : "Add to menu"}<ArrowRight size={16} /></button></form></section></div>}
     </main>
