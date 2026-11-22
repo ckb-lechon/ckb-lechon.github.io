@@ -1000,8 +1000,8 @@ export default function HomePage() {
 
         <section className="menu-section" id="menu">
           <div className="mobile-contact-info">
-            <div className="mobile-contact-location"><MapPin size={16} aria-hidden="true" /><span>Purok-11, Brgy. Obrero, Butuan City</span></div>
-            <div className="mobile-contact-facebook"><Facebook size={16} aria-hidden="true" /><span>Follow us on Facebook; just <a href="https://www.facebook.com/profile.php?id=100089199199223" target="_blank" rel="noreferrer">click here!</a></span></div>
+            <div className="mobile-contact-location"><MapPin size={18} aria-hidden="true" /><span>Purok-11, Brgy. Obrero, Butuan City 8600</span></div>
+            <div className="mobile-contact-facebook"><Facebook size={18} aria-hidden="true" /><span>Follow us on Facebook; just <a href="https://www.facebook.com/profile.php?id=100089199199223" target="_blank" rel="noreferrer">click here!</a></span></div>
           </div>
           <div className="mobile-message-marquee">
             <p className="mobile-message-description">Menu updates: {mobileMenuMessages.join(" ")}</p>

@@ -364,7 +364,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   .hero-side-note { display: none; }
   .hero-sun { top: 35px; right: 21px; width: 47px; height: 47px; font-size: 11px; }
   .menu-section { padding: 28px 17px 45px; }
-  .mobile-contact-info { margin: 0 0 12px; display: flex; flex-direction: column; gap: 8px; color: #76594d; font-size: 11px; line-height: 1.45; }
+  .mobile-contact-info { margin: 0 0 12px; display: flex; flex-direction: column; gap: 8px; color: #76594d; font-size: 12px; line-height: 1.45; }
   .mobile-contact-location { display: flex; align-items: center; gap: 7px; color: #714a27; font-weight: 600; }
   .mobile-contact-location svg { flex: 0 0 auto; color: #d98625; }
   .mobile-contact-facebook { display: flex; align-items: center; gap: 7px; }
