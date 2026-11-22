@@ -13,7 +13,7 @@ Customers register and sign in with email and password; their mobile number is s
 
 ## Admin access
 
-Admin access is enforced by the `admin: true` Firebase Authentication custom claim and a server-managed `users/{uid}.role == "admin"` field. In a trusted environment authenticated with Google Application Default Credentials for the `ck-lechon` project, run `npm run set:admin -- <firebase-auth-uid>` for a staff account, then sign out and back in to refresh the ID token. Never expose a service-account key in this static website. Firestore rules are deployed to `ck-lechon`.
+Admin access is enforced by the server-managed `users/{uid}.role == "admin"` field. Existing admins can grant or remove admin access for other users from the Users page; Firestore rules prevent users from changing their own role. To grant the first admin, use a trusted environment authenticated with Google Application Default Credentials for the `ck-lechon` project and run `npm run set:admin -- <firebase-auth-uid>`. The script also sets the legacy Firebase Authentication custom claim, but Firestore authorization uses the profile role. Never expose a service-account key in this static website. Firestore rules are deployed to `ck-lechon`.
 
 Before using email/password sign-in in production, enable the Email/Password provider and add `ckb-lechon.github.io` to **Authentication > Settings > Authorized domains**.
 
@@ -49,7 +49,7 @@ If deploying through **Cloudflare Pages** instead, choose the **Next.js (Static 
 ## Firebase data
 
 - `products`: active menu items, image URL, regular or promotional price, and promo dates.
-- `users`: name, address, phone, and a non-privileged profile role.
+- `users`: name, address, phone, email, and the server-managed admin role.
 - `orders`: product snapshot, pickup slot, buyer details, payment status, and delivery status.
 
 Firebase Authentication email/password accounts should use a valid customer email address. Configure password policy and authorized domains in Firebase Console.

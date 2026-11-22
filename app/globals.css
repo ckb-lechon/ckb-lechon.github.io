@@ -147,6 +147,10 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .calendar-orders-table td:first-child { color: var(--ink); font-weight: 700; }
 .calendar-orders-table td:last-child a { color: #9b472c; text-decoration: none; white-space: nowrap; }
 .calendar-orders-table td:last-child a:hover { text-decoration: underline; }
+.admin-users-table { min-width: 560px; }
+.admin-users-table td:nth-child(2) { overflow-wrap: anywhere; }
+.admin-users-table td:last-child select { min-height: 34px; min-width: 120px; padding: 0 10px; border: 1px solid var(--line); border-radius: 9px; color: #745a50; background: #fffaf6; font-size: 10px; }
+.admin-users-table td:last-child select:disabled { cursor: not-allowed; opacity: .7; }
 .calendar-balance { color: #a94a2e; font-weight: 700; white-space: nowrap; }
 .calendar-balance.paid { color: var(--green); }
 .calendar-empty-state { min-height: 150px; display: grid; place-items: center; color: var(--muted); font-size: 11px; text-align: center; }

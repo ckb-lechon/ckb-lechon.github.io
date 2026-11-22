@@ -48,6 +48,7 @@ import {
   ShoppingBag,
   Sparkles,
   UserRound,
+  UsersRound,
   X,
 } from "lucide-react";
 import Image from "next/image";
@@ -102,8 +103,9 @@ type CustomerOrder = {
   cancelledAt?: number | Timestamp;
 };
 
-type Tab = "shop" | "orders" | "admin";
+type Tab = "shop" | "orders" | "admin" | "users";
 type AuthMode = "login" | "signup";
+type ManagedUser = { uid: string; name: string; email: string; role: "admin" | "user" };
 
 const retiredSampleProductIds = new Set(["whole-lechon", "lechon-belly", "crispy-sisig"]);
 const manilaUtcOffsetMs = 8 * 60 * 60 * 1000;
@@ -177,6 +179,8 @@ function isPromoExpired(product: Product, dateKey: string) {
 export default function HomePage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<CustomerOrder[]>([]);
+  const [users, setUsers] = useState<ManagedUser[]>([]);
+  const [usersLoading, setUsersLoading] = useState(false);
   const [profile, setProfile] = useState<Profile>(blankProfile);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [admin, setAdmin] = useState(false);
@@ -209,6 +213,7 @@ export default function HomePage() {
   const [currentTime, setCurrentTime] = useState(0);
   const [today, setToday] = useState("");
   const [cancelingOrderId, setCancelingOrderId] = useState<string | null>(null);
+  const [changingRoleUid, setChangingRoleUid] = useState<string | null>(null);
   const [calendarMonth, setCalendarMonth] = useState("");
   const [selectedPickupDate, setSelectedPickupDate] = useState("");
 
@@ -233,7 +238,10 @@ export default function HomePage() {
 
   useEffect(() => {
     if (!firebaseEnabled || !auth || !db) return;
-    return onAuthStateChanged(auth, async (user) => {
+    let stopProfile: (() => void) | undefined;
+    const stopAuth = onAuthStateChanged(auth, (user) => {
+      stopProfile?.();
+      stopProfile = undefined;
       setCurrentUser(user);
       setDemoMode(null);
       if (!user) {
@@ -241,15 +249,22 @@ export default function HomePage() {
         setAdmin(false);
         setActiveTab("shop");
         setOrders([]);
+        setUsers([]);
         return;
       }
-      const token = await user.getIdTokenResult();
-      const isStaff = token.claims.admin === true;
-      setAdmin(isStaff);
-      if (isStaff) setActiveTab("admin");
-      const userSnapshot = await getDoc(profilePath(user.uid));
-      if (userSnapshot.exists()) setProfile(userSnapshot.data() as Profile);
+      stopProfile = onSnapshot(profilePath(user.uid), (snapshot) => {
+        const userProfile = snapshot.exists() ? snapshot.data() : null;
+        const isStaff = userProfile?.role === "admin";
+        setProfile(userProfile ? userProfile as Profile : blankProfile);
+        setAdmin(isStaff);
+        if (isStaff) setActiveTab("admin");
+        else setActiveTab((current) => current === "admin" || current === "users" ? "shop" : current);
+      });
     });
+    return () => {
+      stopAuth();
+      stopProfile?.();
+    };
   }, []);
 
   useEffect(() => {
@@ -279,6 +294,32 @@ export default function HomePage() {
       stopProducts();
       stopOrders?.();
     };
+  }, [admin, currentUser, demoMode]);
+
+  useEffect(() => {
+    if (!firebaseEnabled || !db || !currentUser || !admin || demoMode) {
+      setUsers([]);
+      setUsersLoading(false);
+      return;
+    }
+    setUsersLoading(true);
+    return onSnapshot(collection(db, "users"), (snapshot) => {
+      const list = snapshot.docs.map((item) => {
+        const data = item.data() as Partial<Profile> & { role?: string };
+        const name = [data.firstName, data.middleName, data.lastName, data.suffix].filter(Boolean).join(" ");
+        return {
+          uid: item.id,
+          name: name || "Unnamed user",
+          email: data.email || "",
+          role: data.role === "admin" ? "admin" as const : "user" as const,
+        };
+      }).sort((left, right) => left.name.localeCompare(right.name));
+      setUsers(list);
+      setUsersLoading(false);
+    }, (error) => {
+      setUsersLoading(false);
+      setNotice(`Unable to load users: ${error.message}`);
+    });
   }, [admin, currentUser, demoMode]);
 
   useEffect(() => {
@@ -338,10 +379,11 @@ export default function HomePage() {
     try {
       const result = await signInWithEmailAndPassword(auth, authProfile.email.trim().toLowerCase(), authPassword);
       const data = await getDoc(profilePath(result.user.uid));
-      if (data.exists()) setProfile(data.data() as Profile);
+      const userProfile = data.exists() ? data.data() : null;
+      if (userProfile) setProfile(userProfile as Profile);
       setAuthOpen(false);
-      const token = await result.user.getIdTokenResult();
-      const isStaff = token.claims.admin === true;
+      const isStaff = userProfile?.role === "admin";
+      setAdmin(isStaff);
       if (isStaff) {
         setAdmin(true);
         setActiveTab("admin");
@@ -479,6 +521,19 @@ export default function HomePage() {
       await updateDoc(doc(db, "orders", id), changes);
     }
     setNotice("Order updated.");
+  }
+
+  async function updateUserRole(user: ManagedUser, role: ManagedUser["role"]) {
+    if (!db || !admin || user.uid === currentUser?.uid || changingRoleUid) return;
+    setChangingRoleUid(user.uid);
+    try {
+      await updateDoc(profilePath(user.uid), { role });
+      setNotice(`${user.name} is ${role === "admin" ? "now an admin" : "no longer an admin"}.`);
+    } catch (error) {
+      setNotice(error instanceof Error ? `Unable to update role: ${error.message}` : "Unable to update this user's role.");
+    } finally {
+      setChangingRoleUid(null);
+    }
   }
 
   async function saveDownpayment(order: CustomerOrder, input: HTMLInputElement) {
@@ -661,11 +716,13 @@ export default function HomePage() {
           <button className={activeTab === "shop" ? "nav-link active" : "nav-link"} onClick={() => setActiveTab("shop")}>Menu</button>
           {signedIn && !canManage && <button className={activeTab === "orders" ? "nav-link active" : "nav-link"} onClick={requestOrders}>My Orders</button>}
           {canManage && <button className={activeTab === "admin" ? "nav-link active" : "nav-link"} onClick={() => setActiveTab("admin")}>Order List</button>}
+          {canManage && currentUser && <button className={activeTab === "users" ? "nav-link active" : "nav-link"} onClick={() => setActiveTab("users")}>Users</button>}
         </nav>
         <div className="topbar-actions">
           {!signedIn ? <button className="sign-in-button" onClick={() => showSignIn("login")}>Sign in <ArrowRight size={16} /></button> : <>
             <div className="profile-chip"><span className="profile-dot"><UserRound size={15} aria-hidden="true" /></span><span>{profile.firstName || "Account"}</span></div>
             <button className="mobile-menu" onClick={() => canManage ? setActiveTab("admin") : requestOrders()} aria-label={canManage ? "Order List" : "My Orders"} aria-current={activeTab === (canManage ? "admin" : "orders") ? "page" : undefined}>{canManage ? <List size={19} /> : <ShoppingBag size={19} />}</button>
+            {canManage && currentUser && <button className="mobile-menu" onClick={() => setActiveTab("users")} aria-label="Users" aria-current={activeTab === "users" ? "page" : undefined}><UsersRound size={19} /></button>}
             <button className="logout-button" onClick={requestLogout} aria-label="Log out" title="Log out"><LogOut size={16} /><span>Log out</span></button>
           </>}
         </div>
@@ -750,6 +807,11 @@ export default function HomePage() {
         {deliveredOrders.length === 0 ? <div className="admin-empty">No delivered orders just yet.</div> : <div className="admin-order-list">{deliveredOrders.map(renderAdminOrder)}</div>}
         <div className="admin-products-heading"><div><h2>Menu items</h2><span>Manage what customers can order.</span></div></div>
         <div className="admin-products-list">{products.map((product) => <article key={product.id}><div className="admin-product-photo" style={{ backgroundImage: `url("${product.imageUrl}")` }} /><div className="admin-product-copy"><strong>{product.name}</strong><span>{peso(product.price)} · {product.saleType === "promo" ? `Promo${product.promoFrom ? ` from ${formatDate(product.promoFrom)}` : ""}` : "Regular"}</span></div><button className="edit-product" onClick={() => openProductForm(product)}>Edit</button><button className="remove-product" onClick={() => archiveProduct(product)}>Remove</button></article>)}</div>
+      </section>}
+
+      {activeTab === "users" && canManage && currentUser && <section className="dashboard-section admin-section">
+        <div className="dashboard-heading"><div><span className="eyebrow"><span className="eyebrow-line" /> CKB LECHON HOUSE</span><h1>Users<span className="heading-period">.</span></h1><p>View accounts and manage admin access.</p></div></div>
+        {usersLoading ? <div className="admin-empty">Loading users…</div> : users.length === 0 ? <div className="admin-empty">No user accounts found.</div> : <div className="calendar-orders-table-wrap admin-users-table-wrap"><table className="calendar-orders-table admin-users-table"><thead><tr><th>Name</th><th>Email</th><th>Role</th></tr></thead><tbody>{users.map((user) => <tr key={user.uid}><td>{user.name}</td><td>{user.email || "—"}</td><td><select aria-label={`Role for ${user.name}`} value={user.role} disabled={user.uid === currentUser.uid || changingRoleUid !== null} title={user.uid === currentUser.uid ? "You cannot change your own role." : undefined} onChange={(event) => void updateUserRole(user, event.target.value as ManagedUser["role"])}><option value="user">Not Admin</option><option value="admin">Admin</option></select></td></tr>)}</tbody></table></div>}
       </section>}
 
       {activeTab !== "orders" && <footer className="site-footer"><div className="footer-brand"><span className="brand-stamp brand-icon" aria-hidden="true" /><div><strong>CK Bless Lechon House</strong><span>Located at Purok-11, Obrero, Butuan City 8600</span></div></div><div className="footer-socials"><a className="social-link" href="https://www.facebook.com/LeAndrei.Yang7" target="_blank" rel="noreferrer" aria-label="Facebook"><Facebook size={17} /></a><button className="social-link" onClick={() => setLocationMapOpen(true)} aria-label="Open location map" title="View location"><MapPin size={17} /></button></div></footer>}
