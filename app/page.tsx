@@ -745,7 +745,7 @@ export default function HomePage() {
 
         <section className="menu-section" id="menu">
           <div className="section-heading">
-            <div><span className="eyebrow"><span className="eyebrow-line" /> THE GOOD STUFF</span><h2>Gather round.</h2></div>
+            <div><span className="eyebrow"><span className="eyebrow-line" /> Order na, presyong kaya.</span><h2>Special Menu</h2></div>
             <p>Fresh from our kitchen,<br />ready for your home.</p>
           </div>
           <div className="product-grid">
