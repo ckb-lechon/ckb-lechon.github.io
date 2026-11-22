@@ -353,7 +353,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   .hero h1 { margin: 12px 0 8px; font-size: 45px; }
   .hero-copy > p { max-width: 300px; margin: 8px 0 14px; font-size: 12px; line-height: 1.55; }
   .hero-cta { min-height: 40px; padding: 0 14px; gap: 12px; border-radius: 12px; font-size: 10px; }
-  .hero-photo { width: 100%; height: clamp(320px, 78vw, 430px); margin-top: -100px; border-width: 6px; border-radius: 30px 30px 72px 30px; transform: rotate(1deg); }
+  .hero-photo { width: 100%; height: clamp(188px, 56vw, 265px); border-width: 6px; border-radius: 30px 30px 72px 30px; transform: rotate(1deg); }
   .hero-note { right: 11px; bottom: -16px; width: 103px; height: 103px; padding: 14px; border-width: 4px; }
   .hero-note span { font-size: 8px; }
   .hero-note strong { font-size: 15px; }
