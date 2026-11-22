@@ -5,8 +5,8 @@ import { ImageResponse } from "next/og";
 export const dynamic = "force-static";
 
 export async function GET() {
-  const foodPhoto = await readFile(join(process.cwd(), "public", "display.jpg"));
-  const foodPhotoSrc = `data:image/jpeg;base64,${foodPhoto.toString("base64")}`;
+  const foodPhoto = await readFile(join(process.cwd(), "public", "display.webp"));
+  const foodPhotoSrc = `data:image/webp;base64,${foodPhoto.toString("base64")}`;
 
   return new ImageResponse(
     (
