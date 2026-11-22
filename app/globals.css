@@ -506,4 +506,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   .profile-chip { min-height: 36px; padding: 0; border: 0; background: transparent; box-shadow: none; }
   .profile-chip > span:not(.profile-dot) { display: none; }
 }
-@media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; } }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+  .mobile-message-track { animation-duration: 15s !important; animation-iteration-count: infinite !important; }
+}
