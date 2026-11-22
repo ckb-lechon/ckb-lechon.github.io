@@ -812,8 +812,9 @@ export default function HomePage() {
     if (order?.status === "delivered" && (
       ("status" in changes && changes.status !== "delivered")
       || ("downpayment" in changes && changes.downpayment !== (order.downpayment ?? 0))
+      || ("paymentStatus" in changes && changes.paymentStatus !== "paid")
     )) {
-      setNotice("Delivered orders cannot have their status or downpayment changed.");
+      setNotice("Delivered orders cannot be marked unpaid or have their status or downpayment changed.");
       return;
     }
     if (demoMode) {
@@ -843,6 +844,11 @@ export default function HomePage() {
     if (action === "delivered" && currentOrder.status !== "pending") {
       setOrderActionConfirmation(null);
       setNotice("This order can no longer be marked delivered.");
+      return;
+    }
+    if (action === "delivered" && orderBalance(currentOrder) > 0) {
+      setOrderActionConfirmation(null);
+      setNotice("Collect the remaining balance before marking this order delivered.");
       return;
     }
 
@@ -1117,10 +1123,10 @@ export default function HomePage() {
         <div className="admin-order-item"><div className="admin-order-photo" style={{ backgroundImage: `url("${order.imageUrl}")` }} /><div><button type="button" className="order-name-link" onClick={() => openOrderProductCard(order)}>{order.productName}</button><span>{order.quantity} {order.quantity === 1 ? "item" : "items"} · {peso(order.total)}</span></div></div>
         <div className="admin-pickup"><span>PICKUP</span><strong>{formatDate(order.pickupDate)}</strong><span>{formatTime(order.pickupTime)}</span></div>
         <div className="admin-downpayment"><span>DOWNPAYMENT</span>{order.status === "delivered" ? <span className="downpayment-value">{peso(order.downpayment ?? 0)}</span> : <label className="downpayment-input">₱<input type="number" min="0" max={order.total} step="0.01" defaultValue={order.downpayment ?? 0} key={`${order.id}-${order.downpayment ?? 0}`} aria-label={`Downpayment for ${order.customer}`} onBlur={(event) => saveDownpayment(order, event.currentTarget)} /></label>}</div>
-        <div className="admin-balance"><span>BALANCE</span><strong>{peso(orderBalance(order))}</strong>{order.paymentStatus === "paid" ? <button className="payment-toggle paid" onClick={() => updateOrder(order.id, { paymentStatus: "due" })}>Fully paid</button> : orderBalance(order) === 0 ? <span className="payment-toggle paid">Fully paid</span> : <button className="payment-toggle" onClick={() => setOrderActionConfirmation({ order, action: "payment" })}>Needs payment</button>}</div>
+        <div className="admin-balance"><span>BALANCE</span><strong>{peso(orderBalance(order))}</strong>{order.paymentStatus === "paid" ? order.status === "delivered" ? <span className="payment-toggle paid">Fully paid</span> : <button className="payment-toggle paid" onClick={() => updateOrder(order.id, { paymentStatus: "due" })}>Fully paid</button> : orderBalance(order) === 0 ? <span className="payment-toggle paid">Fully paid</span> : <button className="payment-toggle" onClick={() => setOrderActionConfirmation({ order, action: "payment" })}>Needs payment</button>}</div>
         <div className="admin-order-actions">
           {currentUser && <button className="order-message-button" aria-label={`Message ${order.customer}${unreadCount ? `, ${unreadCount} new messages` : ""}`} onClick={() => setConversationOrder(order)}>Message{unreadCount > 0 && <span className="unread-message-badge" aria-hidden="true">{unreadCount > 99 ? "99+" : unreadCount}</span>}</button>}
-          {order.status === "cancelled" ? <button className="delivered-toggle cancelled" disabled>Cancelled</button> : order.status === "delivered" ? <button className="delivered-toggle delivered" disabled><Check size={15} /> Delivered</button> : <button className="delivered-toggle" onClick={() => setOrderActionConfirmation({ order, action: "delivered" })}>Mark delivered</button>}
+          {order.status === "cancelled" ? <button className="delivered-toggle cancelled" disabled>Cancelled</button> : order.status === "delivered" ? <button className="delivered-toggle delivered" disabled><Check size={15} /> Delivered</button> : <button className="delivered-toggle" onClick={() => setOrderActionConfirmation({ order, action: "delivered" })} disabled={orderBalance(order) > 0} title={orderBalance(order) > 0 ? "Collect the remaining balance before marking delivered." : undefined}>Mark delivered</button>}
         </div>
       </article>
     );
