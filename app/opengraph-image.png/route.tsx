@@ -1,12 +1,14 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { ImageResponse } from "next/og";
+import sharp from "sharp";
 
 export const dynamic = "force-static";
 
 export async function GET() {
-  const foodPhoto = await readFile(join(process.cwd(), "public", "display.webp"));
-  const foodPhotoSrc = `data:image/webp;base64,${foodPhoto.toString("base64")}`;
+  const webpPhoto = await readFile(join(process.cwd(), "public", "display.webp"));
+  const foodPhoto = await sharp(webpPhoto).flatten({ background: "#5a2b1b" }).jpeg({ quality: 88 }).toBuffer();
+  const foodPhotoSrc = `data:image/jpeg;base64,${foodPhoto.toString("base64")}`;
 
   return new ImageResponse(
     (
