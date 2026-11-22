@@ -249,6 +249,7 @@ export default function HomePage() {
   const [postAuthTab, setPostAuthTab] = useState<Tab | null>(null);
   const [orderProduct, setOrderProduct] = useState<Product | null>(null);
   const [cancelOrderConfirmation, setCancelOrderConfirmation] = useState<CustomerOrder | null>(null);
+  const [productRemovalConfirmation, setProductRemovalConfirmation] = useState<Product | null>(null);
   const [logoutConfirmationOpen, setLogoutConfirmationOpen] = useState(false);
   const [downpaymentQrOpen, setDownpaymentQrOpen] = useState(false);
   const [conversationOrder, setConversationOrder] = useState<CustomerOrder | null>(null);
@@ -691,8 +692,8 @@ export default function HomePage() {
     }
   }
 
-  async function deleteProduct(product: Product) {
-    if (removingProductId) return;
+  async function deleteProduct(product: Product): Promise<boolean> {
+    if (removingProductId) return false;
     setRemovingProductId(product.id);
     try {
       if (demoMode) {
@@ -704,14 +705,22 @@ export default function HomePage() {
         setProducts((current) => current.filter((item) => item.id !== product.id));
       } else {
         setNotice("Admin access is required to remove menu items.");
-        return;
+        return false;
       }
-      setNotice("Menu item deleted from Firestore.");
+      setNotice("Menu item removed.");
+      return true;
     } catch (error) {
       setNotice(error instanceof Error ? `Unable to remove menu item: ${error.message}` : "Unable to remove this menu item.");
+      return false;
     } finally {
       setRemovingProductId(null);
     }
+  }
+
+  async function confirmProductRemoval() {
+    if (!productRemovalConfirmation || removingProductId) return;
+    const removed = await deleteProduct(productRemovalConfirmation);
+    if (removed) setProductRemovalConfirmation(null);
   }
 
   async function updateOrder(id: string, changes: Partial<CustomerOrder>) {
@@ -1099,7 +1108,7 @@ export default function HomePage() {
             ? <div className="admin-empty">No delivered orders match these filters.</div>
             : <div className="admin-order-list">{filteredDeliveredOrders.map(renderAdminOrder)}</div>}
         <div className="admin-products-heading"><div><h2>Menu items</h2><span>Manage what customers can order.</span></div></div>
-        {products.length === 0 ? <div className="admin-empty">No active menu items. Add an item to make it available to customers.</div> : <div className="admin-products-list">{adminMenuProducts.map((product) => <article key={product.id}><div className="admin-product-photo" style={{ backgroundImage: `url("${product.imageUrl}")` }} /><div className="admin-product-copy"><strong>{product.orderName}</strong><span>{peso(product.price)} · {product.saleType === "promo" ? `Promo${product.promoFrom ? ` from ${formatDate(product.promoFrom)}` : ""}` : "Regular"}</span></div>{isPromoExpired(product, today) && <span className="expired-promo-label">Expired Promo</span>}<button className="edit-product" onClick={() => openProductForm(product)}>Edit</button><button className="remove-product" onClick={() => deleteProduct(product)} disabled={removingProductId === product.id}>{removingProductId === product.id ? "Deleting…" : "Remove"}</button></article>)}</div>}
+        {products.length === 0 ? <div className="admin-empty">No active menu items. Add an item to make it available to customers.</div> : <div className="admin-products-list">{adminMenuProducts.map((product) => <article key={product.id}><div className="admin-product-photo" style={{ backgroundImage: `url("${product.imageUrl}")` }} /><div className="admin-product-copy"><strong>{product.orderName}</strong><span>{peso(product.price)} · {product.saleType === "promo" ? `Promo${product.promoFrom ? ` from ${formatDate(product.promoFrom)}` : ""}` : "Regular"}</span></div>{isPromoExpired(product, today) && <span className="expired-promo-label">Expired Promo</span>}<button className="edit-product" onClick={() => openProductForm(product)}>Edit</button><button className="remove-product" onClick={() => setProductRemovalConfirmation(product)} disabled={removingProductId === product.id}>{removingProductId === product.id ? "Removing…" : "Remove"}</button></article>)}</div>}
       </section>}
 
       {activeTab === "users" && canManageUsers && currentUser && <section className="dashboard-section admin-section">
@@ -1169,6 +1178,8 @@ export default function HomePage() {
       {locationMapOpen && <div className="overlay map-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) setLocationMapOpen(false); }} onKeyDown={(event) => { if (event.key === "Escape") setLocationMapOpen(false); }}><section className="dialog map-dialog" role="dialog" aria-modal="true" aria-labelledby="location-map-title" aria-describedby="location-map-description"><button className="dialog-close" autoFocus onClick={() => setLocationMapOpen(false)} aria-label="Close location map"><X size={19} /></button><div className="dialog-kicker">CKB LECHON HOUSE</div><h2 id="location-map-title">Find us.</h2><p id="location-map-description">Located at Purok-11, Obrero, Butuan City 8600.</p><iframe className="location-map-frame" title="Map to CKB Lechon House" src="https://www.google.com/maps?q=8.964564313632456%2C125.53672241133174&z=17&output=embed" loading="lazy" referrerPolicy="no-referrer-when-downgrade" /><a className="map-external-link" href="https://www.google.com/maps?q=8.964564313632456%2C125.53672241133174" target="_blank" rel="noreferrer">Open in Google Maps <ArrowRight size={14} /></a></section></div>}
 
       {cancelOrderConfirmation && <div className="overlay confirmation-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) setCancelOrderConfirmation(null); }} onKeyDown={(event) => { if (event.key === "Escape") setCancelOrderConfirmation(null); }}><section className="dialog confirmation-dialog" role="alertdialog" aria-modal="true" aria-labelledby="cancel-order-title" aria-describedby="cancel-order-description"><span className="confirmation-icon"><CircleAlert size={21} /></span><div className="dialog-kicker">YOUR CKB TABLE</div><h2 id="cancel-order-title">Cancel this order?</h2><p id="cancel-order-description">You’re cancelling <strong>{cancelOrderConfirmation.productName}</strong>. This can’t be undone.</p><div className="confirmation-order-summary"><span>{formatDate(cancelOrderConfirmation.pickupDate)} · {formatTime(cancelOrderConfirmation.pickupTime)}</span><strong>{peso(cancelOrderConfirmation.total)}</strong></div><div className="confirmation-actions"><button className="confirmation-keep" autoFocus onClick={() => setCancelOrderConfirmation(null)}>Keep order</button><button className="confirmation-cancel" onClick={confirmOrderCancellation} disabled={cancelingOrderId === cancelOrderConfirmation.id}>{cancelingOrderId === cancelOrderConfirmation.id ? "Cancelling…" : "Cancel order"}</button></div></section></div>}
+
+      {productRemovalConfirmation && <div className="overlay confirmation-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget && !removingProductId) setProductRemovalConfirmation(null); }} onKeyDown={(event) => { if (event.key === "Escape" && !removingProductId) setProductRemovalConfirmation(null); }}><section className="dialog confirmation-dialog" role="alertdialog" aria-modal="true" aria-labelledby="remove-product-title" aria-describedby="remove-product-description"><span className="confirmation-icon"><CircleAlert size={21} /></span><div className="dialog-kicker">THE CKB MENU</div><h2 id="remove-product-title">Remove this menu item?</h2><p id="remove-product-description">You’re removing <strong>{productRemovalConfirmation.orderName}</strong>. Customers will no longer be able to order it. This can’t be undone.</p><div className="confirmation-actions"><button className="confirmation-keep" autoFocus onClick={() => setProductRemovalConfirmation(null)} disabled={Boolean(removingProductId)}>Keep item</button><button className="confirmation-cancel" onClick={confirmProductRemoval} disabled={Boolean(removingProductId)}>{removingProductId === productRemovalConfirmation.id ? "Removing…" : "Remove item"}</button></div></section></div>}
 
       {logoutConfirmationOpen && <div className="overlay confirmation-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) setLogoutConfirmationOpen(false); }} onKeyDown={(event) => { if (event.key === "Escape") setLogoutConfirmationOpen(false); }}><section className="dialog confirmation-dialog" role="alertdialog" aria-modal="true" aria-labelledby="logout-title" aria-describedby="logout-description"><span className="confirmation-icon"><LogOut size={20} /></span><div className="dialog-kicker">CKB LECHON HOUSE</div><h2 id="logout-title">Logout Confirmation</h2><p id="logout-description">Are you sure you want to end your session?</p><div className="confirmation-actions"><button className="confirmation-keep" autoFocus onClick={() => setLogoutConfirmationOpen(false)}>Stay signed in</button><button className="confirmation-cancel" onClick={logout}>Log out</button></div></section></div>}
 
