@@ -14,6 +14,7 @@ import {
   doc,
   getDoc,
   onSnapshot,
+  orderBy,
   query,
   serverTimestamp,
   setDoc,
@@ -28,7 +29,6 @@ import {
   ArrowDownRight,
   ArrowLeft,
   ArrowRight,
-  BadgeCheck,
   Banknote,
   CalendarDays,
   Check,
@@ -56,6 +56,7 @@ import {
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import { auth, db, firebaseEnabled } from "@/lib/firebase";
+import OrderConversation from "./OrderConversation";
 
 const uploadThingUrl = process.env.NEXT_PUBLIC_UPLOADTHING_URL || "";
 const uploadThingConfigured = Boolean(uploadThingUrl);
@@ -250,6 +251,8 @@ export default function HomePage() {
   const [cancelOrderConfirmation, setCancelOrderConfirmation] = useState<CustomerOrder | null>(null);
   const [logoutConfirmationOpen, setLogoutConfirmationOpen] = useState(false);
   const [downpaymentQrOpen, setDownpaymentQrOpen] = useState(false);
+  const [conversationOrder, setConversationOrder] = useState<CustomerOrder | null>(null);
+  const [unreadMessageCounts, setUnreadMessageCounts] = useState<Record<string, number>>({});
   const [locationMapOpen, setLocationMapOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [notice, setNotice] = useState("");
@@ -286,6 +289,8 @@ export default function HomePage() {
   const menuProducts = products.filter((product) => !today || !isPromoExpired(product, today));
   const menuCategories = orderNames.filter((orderName) => menuProducts.some((product) => product.orderName === orderName));
   const menuCategoryKey = menuCategories.join("|");
+  const currentUserId = currentUser?.uid;
+  const conversationOrderIds = orders.filter((order) => order.status !== "cancelled").map((order) => order.id).sort().join("|");
   const adminMenuProducts = [...products].sort((a, b) =>
     a.orderName.localeCompare(b.orderName, undefined, { sensitivity: "base" })
       || a.description.localeCompare(b.description, undefined, { sensitivity: "base" }),
@@ -421,6 +426,53 @@ export default function HomePage() {
       stopOrders?.();
     };
   }, [admin, currentUser, demoMode]);
+
+  useEffect(() => {
+    const messageListIsVisible = canManage ? activeTab === "admin" : activeTab === "orders";
+    if (!firebaseEnabled || !db || !currentUserId || demoMode || !conversationOrderIds || !messageListIsVisible) {
+      setUnreadMessageCounts({});
+      return;
+    }
+
+    const userId = currentUserId;
+    const orderIds = conversationOrderIds.split("|");
+    const unsubscribeAll: (() => void)[] = [];
+    setUnreadMessageCounts({});
+
+    for (const orderId of orderIds) {
+      let messages: { senderId?: string; createdAt?: Timestamp }[] = [];
+      let lastReadAt: Timestamp | null = null;
+      const updateUnreadCount = () => {
+        const count = messages.filter((message) =>
+          message.senderId !== userId
+          && message.createdAt
+          && (!lastReadAt || message.createdAt.toMillis() > lastReadAt.toMillis()),
+        ).length;
+        setUnreadMessageCounts((current) => current[orderId] === count ? current : { ...current, [orderId]: count });
+      };
+
+      unsubscribeAll.push(onSnapshot(
+        query(collection(db, "orders", orderId, "messages"), orderBy("createdAt", "asc")),
+        (snapshot) => {
+          messages = snapshot.docs.map((item) => item.data() as { senderId?: string; createdAt?: Timestamp });
+          updateUnreadCount();
+        },
+        () => {
+          messages = [];
+          updateUnreadCount();
+        },
+      ));
+      unsubscribeAll.push(onSnapshot(doc(db, "orders", orderId, "readStates", userId), (snapshot) => {
+        lastReadAt = (snapshot.data()?.lastReadAt as Timestamp | undefined) ?? null;
+        updateUnreadCount();
+      }, () => {
+        lastReadAt = null;
+        updateUnreadCount();
+      }));
+    }
+
+    return () => unsubscribeAll.forEach((unsubscribe) => unsubscribe());
+  }, [activeTab, canManage, conversationOrderIds, currentUserId, demoMode]);
 
   useEffect(() => {
     if (!firebaseEnabled || !db || !currentUser || !canManageUsers || demoMode) {
@@ -767,6 +819,7 @@ export default function HomePage() {
     setCurrentUser(null);
     setDemoMode(null);
     setAdmin(false);
+    setConversationOrder(null);
     setActiveTab("shop");
     setLogoutConfirmationOpen(false);
     setNotice("You're signed out.");
@@ -873,7 +926,20 @@ export default function HomePage() {
   }
 
   function renderAdminOrder(order: CustomerOrder) {
-    return <article className="admin-order" key={order.id}><div className="admin-customer"><div><strong>{order.customer}</strong><span>{order.address}</span><a href={`tel:${order.phone}`}>{order.phone}</a></div></div><div className="admin-order-item"><div className="admin-order-photo" style={{ backgroundImage: `url("${order.imageUrl}")` }} /><div><strong>{order.productName}</strong><span>{order.quantity} {order.quantity === 1 ? "item" : "items"} · {peso(order.total)}</span></div></div><div className="admin-pickup"><span>PICKUP</span><strong>{formatDate(order.pickupDate)}</strong><span>{formatTime(order.pickupTime)}</span></div><div className="admin-downpayment"><span>DOWNPAYMENT</span>{order.status === "delivered" ? <span className="downpayment-value">{peso(order.downpayment ?? 0)}</span> : <label className="downpayment-input">₱<input type="number" min="0" max={order.total} step="0.01" defaultValue={order.downpayment ?? 0} key={`${order.id}-${order.downpayment ?? 0}`} aria-label={`Downpayment for ${order.customer}`} onBlur={(event) => saveDownpayment(order, event.currentTarget)} /></label>}</div><div className="admin-balance"><span>BALANCE</span><strong>{peso(orderBalance(order))}</strong>{order.paymentStatus === "paid" ? <button className="payment-toggle paid" onClick={() => updateOrder(order.id, { paymentStatus: "due" })}>Fully paid</button> : orderBalance(order) === 0 ? <span className="payment-toggle paid">Fully paid</span> : <button className="payment-toggle" onClick={() => updateOrder(order.id, { paymentStatus: "paid" })}>Needs payment</button>}</div>{order.status === "cancelled" ? <button className="delivered-toggle cancelled" disabled>Cancelled</button> : order.status === "delivered" ? <button className="delivered-toggle delivered" disabled><Check size={15} /> Delivered</button> : <button className="delivered-toggle" onClick={() => updateOrder(order.id, { status: "delivered", deliveredAt: Date.now() })}>Mark delivered</button>}</article>;
+    const unreadCount = unreadMessageCounts[order.id] ?? 0;
+    return (
+      <article className="admin-order" key={order.id}>
+        <div className="admin-customer"><div><strong>{order.customer}</strong><span>{order.address}</span><a href={`tel:${order.phone}`}>{order.phone}</a></div></div>
+        <div className="admin-order-item"><div className="admin-order-photo" style={{ backgroundImage: `url("${order.imageUrl}")` }} /><div><strong>{order.productName}</strong><span>{order.quantity} {order.quantity === 1 ? "item" : "items"} · {peso(order.total)}</span></div></div>
+        <div className="admin-pickup"><span>PICKUP</span><strong>{formatDate(order.pickupDate)}</strong><span>{formatTime(order.pickupTime)}</span></div>
+        <div className="admin-downpayment"><span>DOWNPAYMENT</span>{order.status === "delivered" ? <span className="downpayment-value">{peso(order.downpayment ?? 0)}</span> : <label className="downpayment-input">₱<input type="number" min="0" max={order.total} step="0.01" defaultValue={order.downpayment ?? 0} key={`${order.id}-${order.downpayment ?? 0}`} aria-label={`Downpayment for ${order.customer}`} onBlur={(event) => saveDownpayment(order, event.currentTarget)} /></label>}</div>
+        <div className="admin-balance"><span>BALANCE</span><strong>{peso(orderBalance(order))}</strong>{order.paymentStatus === "paid" ? <button className="payment-toggle paid" onClick={() => updateOrder(order.id, { paymentStatus: "due" })}>Fully paid</button> : orderBalance(order) === 0 ? <span className="payment-toggle paid">Fully paid</span> : <button className="payment-toggle" onClick={() => updateOrder(order.id, { paymentStatus: "paid" })}>Needs payment</button>}</div>
+        <div className="admin-order-actions">
+          {currentUser && <button className="order-message-button" aria-label={`Message ${order.customer}${unreadCount ? `, ${unreadCount} new messages` : ""}`} onClick={() => setConversationOrder(order)}>Message{unreadCount > 0 && <span className="unread-message-badge" aria-hidden="true">{unreadCount > 99 ? "99+" : unreadCount}</span>}</button>}
+          {order.status === "cancelled" ? <button className="delivered-toggle cancelled" disabled>Cancelled</button> : order.status === "delivered" ? <button className="delivered-toggle delivered" disabled><Check size={15} /> Delivered</button> : <button className="delivered-toggle" onClick={() => updateOrder(order.id, { status: "delivered", deliveredAt: Date.now() })}>Mark delivered</button>}
+        </div>
+      </article>
+    );
   }
 
   return (
@@ -972,7 +1038,23 @@ export default function HomePage() {
 
       {activeTab === "orders" && signedIn && !canManage && <section className="dashboard-section">
         <div className="dashboard-heading"><div><span className="eyebrow"><span className="eyebrow-line" /> YOUR CKB TABLE</span><h1>My orders<span className="heading-period">.</span></h1><p>Every good gathering starts with a plan.</p></div><button className="back-menu" onClick={() => setActiveTab("shop")}><ArrowLeft size={16} /> Back to menu</button></div>
-        {myOrders.length === 0 ? <div className="empty-state"><span className="empty-icon"><ShoppingBag /></span><h2>Your table is still open.</h2><p>Once you place an order, we’ll keep all the pickup details here.</p><button className="hero-cta" onClick={() => setActiveTab("shop")}>Browse the menu <ArrowRight size={16} /></button></div> : <div className="customer-order-list">{myOrders.map((order) => <article className="customer-order" key={order.id}><div className="order-thumb" style={{ backgroundImage: `url("${order.imageUrl}")` }} /><div className="customer-order-copy"><div className="customer-order-top"><h2>{order.productName}</h2></div><p>{order.quantity} {order.quantity === 1 ? "item" : "items"} · {peso(order.total)}</p><div className="pickup-line"><CalendarDays size={15} />{formatDate(order.pickupDate)} <span>·</span><Clock3 size={15} />{formatTime(order.pickupTime)}</div></div><div className="customer-order-actions"><div className="payment-note">{order.status === "delivered" ? <><Check size={16} /> Delivered</> : orderBalance(order) === 0 ? <><BadgeCheck size={16} /> Fully paid</> : <>Balance due <strong>{peso(orderBalance(order))}</strong></>}</div><button className="downpayment-qr-button" onClick={() => setDownpaymentQrOpen(true)}>Downpayment QR</button>{canCancelOrder(order, currentTime) && <button className="cancel-order-button" onClick={() => requestOrderCancellation(order)} disabled={cancelingOrderId === order.id}>{cancelingOrderId === order.id ? "Cancelling..." : "Cancel Order"}</button>}</div></article>)}</div>}
+        {myOrders.length === 0
+          ? <div className="empty-state"><span className="empty-icon"><ShoppingBag /></span><h2>Your table is still open.</h2><p>Once you place an order, we’ll keep all the pickup details here.</p><button className="hero-cta" onClick={() => setActiveTab("shop")}>Browse the menu <ArrowRight size={16} /></button></div>
+          : <div className="customer-order-list">{myOrders.map((order) => (
+            <article className="customer-order" key={order.id}>
+              <div className="order-thumb" style={{ backgroundImage: `url("${order.imageUrl}")` }} />
+              <div className="customer-order-copy">
+                <div className="customer-order-top"><h2>{order.productName}</h2></div>
+                <p>{order.quantity} {order.quantity === 1 ? "item" : "items"} · {peso(order.total)}<span className="inline-payment-note"> · {order.status === "delivered" ? "Delivered" : orderBalance(order) === 0 ? "Fully paid" : <>Balance due <strong>{peso(orderBalance(order))}</strong></>}</span></p>
+                <div className="pickup-line"><CalendarDays size={15} />{formatDate(order.pickupDate)} <span>·</span><Clock3 size={15} />{formatTime(order.pickupTime)}</div>
+              </div>
+              <div className="customer-order-actions">
+                {currentUser && <button className="order-message-button" aria-label={`Message ${order.productName}${unreadMessageCounts[order.id] ? `, ${unreadMessageCounts[order.id]} new messages` : ""}`} onClick={() => setConversationOrder(order)}>Message{(unreadMessageCounts[order.id] ?? 0) > 0 && <span className="unread-message-badge" aria-hidden="true">{(unreadMessageCounts[order.id] ?? 0) > 99 ? "99+" : unreadMessageCounts[order.id]}</span>}</button>}
+                <button className="downpayment-qr-button" onClick={() => setDownpaymentQrOpen(true)}>Downpayment QR</button>
+                {canCancelOrder(order, currentTime) && <button className="cancel-order-button" onClick={() => requestOrderCancellation(order)} disabled={cancelingOrderId === order.id}>{cancelingOrderId === order.id ? "Cancelling..." : "Cancel Order"}</button>}
+              </div>
+            </article>
+          ))}</div>}
       </section>}
 
       {activeTab === "admin" && canManage && <section className="dashboard-section admin-section">
@@ -1079,6 +1161,8 @@ export default function HomePage() {
           </section>
         </div>
       )}
+
+      {conversationOrder && currentUser && <OrderConversation key={conversationOrder.id} order={conversationOrder} user={currentUser} viewerRole={canManage ? "admin" : "customer"} onClose={() => setConversationOrder(null)} />}
 
       {downpaymentQrOpen && <div className="overlay qr-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) setDownpaymentQrOpen(false); }} onKeyDown={(event) => { if (event.key === "Escape") setDownpaymentQrOpen(false); }}><section className="dialog qr-dialog" role="dialog" aria-modal="true" aria-labelledby="downpayment-qr-title" aria-describedby="downpayment-qr-description"><button className="dialog-close" autoFocus onClick={() => setDownpaymentQrOpen(false)} aria-label="Close QR code"><X size={19} /></button><div className="dialog-kicker">DOWNPAYMENT</div><h2 id="downpayment-qr-title">Scan to pay.</h2><p id="downpayment-qr-description">Scan this QR code with your banking or payment app.</p><Image className="downpayment-qr-image" src="/downpayment-qr.jpg" alt="Downpayment QR code" width={1284} height={1930} priority /><a className="submit-button qr-save-button" href="/downpayment-qr.jpg" download="downpayment-qr.jpg"><span>Save this QR</span><Download size={17} /></a></section></div>}
 

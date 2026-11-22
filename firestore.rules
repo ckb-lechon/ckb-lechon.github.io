@@ -6,6 +6,11 @@ service cloud.firestore {
       return signedIn()
         && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
+    function canAccessOrderMessages(orderId) {
+      return signedIn()
+        && (isAdmin()
+          || get(/databases/$(database)/documents/orders/$(orderId)).data.userId == request.auth.uid);
+    }
     function validProduct() {
       return request.resource.data.orderName in [
           'Belly',
@@ -104,6 +109,33 @@ service cloud.firestore {
       allow read: if signedIn() && (resource.data.userId == request.auth.uid || isAdmin());
       allow update: if (isAdmin() && deliveredOrderFieldsAreLocked()) || ownerCanCancelOrder();
       allow delete: if isAdmin();
+
+      match /messages/{messageId} {
+        allow read: if canAccessOrderMessages(orderId);
+        allow create: if canAccessOrderMessages(orderId)
+          && request.resource.data.keys().hasAll(['senderId', 'senderRole', 'text', 'createdAt'])
+          && request.resource.data.keys().hasOnly(['senderId', 'senderRole', 'text', 'createdAt'])
+          && request.resource.data.senderId == request.auth.uid
+          && request.resource.data.senderRole == (isAdmin() ? 'admin' : 'customer')
+          && request.resource.data.text is string
+          && request.resource.data.text.size() > 0
+          && request.resource.data.text.size() <= 2000
+          && request.resource.data.createdAt == request.time;
+        allow update, delete: if false;
+      }
+
+      match /readStates/{userId} {
+        allow read: if signedIn()
+          && request.auth.uid == userId
+          && canAccessOrderMessages(orderId);
+        allow create, update: if signedIn()
+          && request.auth.uid == userId
+          && canAccessOrderMessages(orderId)
+          && request.resource.data.keys().hasAll(['lastReadAt'])
+          && request.resource.data.keys().hasOnly(['lastReadAt'])
+          && request.resource.data.lastReadAt == request.time;
+        allow delete: if false;
+      }
     }
   }
 }
