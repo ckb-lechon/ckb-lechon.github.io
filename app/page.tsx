@@ -809,7 +809,7 @@ export default function HomePage() {
             <button className="hero-cta" onClick={() => document.getElementById("menu")?.scrollIntoView({ behavior: "smooth" })}>Find your feast <ArrowDownRight size={17} /></button>
           </div>
           <div className="hero-photo" role="img" aria-label="A generous spread of grilled Filipino feast food">
-            <div className="hero-note"><span>Made for</span><strong>the whole<br />barkada.</strong><Sparkles size={17} /></div>
+            <div className="hero-note"><span>Made for</span><strong>the whole<br />pamilya.</strong><Sparkles size={17} /></div>
           </div>
           <div className="hero-side-note"><span>01 / 03</span><span className="side-line" /><span>ROASTED WITH HEART</span></div>
           <div className="hero-sun" aria-hidden="true">CKB</div>
