@@ -666,10 +666,10 @@ export default function HomePage() {
   const orderOwnerId = currentUser?.uid ?? (demoMode === "customer" ? "demo-customer" : null);
   const myOrders = orderOwnerId ? orders.filter((order) => order.userId === orderOwnerId && order.status !== "cancelled") : [];
   const todayKey = localDateKey(new Date());
-  const todayTotalSold = orders.reduce((total, order) => {
+  const selectedDateTotalSold = orders.reduce((total, order) => {
     if (order.status !== "delivered") return total;
     const deliveredDate = order.deliveredAt ? manilaDateKey(new Date(order.deliveredAt)) : order.pickupDate;
-    return deliveredDate === today ? total + order.total : total;
+    return deliveredDate === selectedPickupDate ? total + order.total : total;
   }, 0);
   const menuProducts = products.filter((product) => !today || !isPromoExpired(product, today));
   const [calendarYear, calendarMonthNumber] = calendarMonth.split("-").map(Number);
@@ -800,7 +800,7 @@ export default function HomePage() {
             {selectedDateOrders.length === 0 ? <div className="calendar-empty-state">No orders scheduled for this date.</div> : <div className="calendar-orders-table-wrap"><table className="calendar-orders-table"><thead><tr><th>Name</th><th>Order</th><th>Balance</th><th>Contact No.</th></tr></thead><tbody>{selectedDateOrders.map((order) => <tr key={order.id}><td>{order.customer}</td><td>{order.quantity} {order.quantity === 1 ? "item" : "items"} · {order.productName}</td><td><span className={orderBalance(order) === 0 ? "calendar-balance paid" : "calendar-balance"}>{orderBalance(order) === 0 ? "Paid" : peso(orderBalance(order))}</span></td><td><a href={`tel:${order.phone}`}>{order.phone}</a></td></tr>)}</tbody></table></div>}
           </section>
         </div>
-        <div className="admin-metrics"><div><span>ALL ORDERS</span><strong>{orders.length.toString().padStart(2, "0")}</strong><PackageCheck size={17} /></div><div><span>NEEDS PAYMENT</span><strong>{orders.filter((item) => item.status !== "cancelled" && orderBalance(item) > 0).length.toString().padStart(2, "0")}</strong><CircleHelp size={17} /></div><div><span>READY TO PICK UP</span><strong>{orders.filter((item) => item.status === "pending").length.toString().padStart(2, "0")}</strong><Clock3 size={17} /></div><div><span>TODAY TOTAL SOLD</span><strong>{peso(todayTotalSold)}</strong><Banknote size={17} /></div></div>
+        <div className="admin-metrics"><div><span>ALL ORDERS</span><strong>{orders.length.toString().padStart(2, "0")}</strong><PackageCheck size={17} /></div><div><span>NEEDS PAYMENT</span><strong>{orders.filter((item) => item.status !== "cancelled" && orderBalance(item) > 0).length.toString().padStart(2, "0")}</strong><CircleHelp size={17} /></div><div><span>READY TO PICK UP</span><strong>{orders.filter((item) => item.status === "pending").length.toString().padStart(2, "0")}</strong><Clock3 size={17} /></div><div><span>TOTAL SOLD</span><strong>{peso(selectedDateTotalSold)}</strong><Banknote size={17} /></div></div>
         <div className="order-list-heading"><div><h2>The pickup list</h2><span>Customer orders, all in one place.</span></div><select aria-label="Filter orders" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)}><option value="all">All orders</option><option value="pending">Not yet delivered</option><option value="due">Needs full payment</option></select></div>
         {filteredOrders.length === 0 ? <div className="admin-empty">No pickup orders match this filter.</div> : <div className="admin-order-list">{filteredOrders.map(renderAdminOrder)}</div>}
         <div className="order-list-heading delivered-orders-heading"><div><h2>Delivered Orders</h2><span>Orders handed over to customers.</span></div></div>
