@@ -32,6 +32,7 @@ import {
   Banknote,
   CalendarDays,
   Check,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   CircleAlert,
@@ -80,6 +81,10 @@ function normalizeOrderName(value: string | undefined): OrderName {
     .sort((left, right) => right.length - left.length)
     .find((orderName) => normalized.includes(orderName.toLowerCase()));
   return partialMatch ?? orderNames[0];
+}
+
+function menuCategoryId(orderName: OrderName) {
+  return `menu-category-${orderNames.indexOf(orderName)}`;
 }
 
 type Product = {
@@ -252,12 +257,16 @@ export default function HomePage() {
   const [changingRoleUid, setChangingRoleUid] = useState<string | null>(null);
   const [calendarMonth, setCalendarMonth] = useState("");
   const [selectedPickupDate, setSelectedPickupDate] = useState("");
+  const [activeMenuCategory, setActiveMenuCategory] = useState<OrderName | "">("");
   const canManage = Boolean(admin && (currentUser || demoMode));
   const canManageUsers = Boolean(
     canManage
       && currentUser?.email
       && usersNavigationEmails.has(currentUser.email.trim().toLowerCase()),
   );
+  const menuProducts = products.filter((product) => !today || !isPromoExpired(product, today));
+  const menuCategories = orderNames.filter((orderName) => menuProducts.some((product) => product.orderName === orderName));
+  const menuCategoryKey = menuCategories.join("|");
 
   useEffect(() => {
     const now = new Date();
@@ -314,6 +323,48 @@ export default function HomePage() {
       setActiveTab(canManage ? "admin" : "shop");
     }
   }, [activeTab, canManage, canManageUsers]);
+
+  useEffect(() => {
+    const categories = menuCategoryKey ? menuCategoryKey.split("|") as OrderName[] : [];
+    setActiveMenuCategory((current) => categories.includes(current as OrderName) ? current : categories[0] ?? "");
+  }, [menuCategoryKey]);
+
+  useEffect(() => {
+    if (activeTab !== "shop" || !menuCategoryKey) return;
+    const categories = menuCategoryKey.split("|") as OrderName[];
+    const headings = categories
+      .map((orderName) => document.getElementById(menuCategoryId(orderName)))
+      .filter((heading): heading is HTMLElement => heading instanceof HTMLElement);
+    if (headings.length === 0) return;
+
+    let frame = 0;
+    const updateActiveCategory = () => {
+      if (window.matchMedia("(max-width: 640px)").matches) {
+        const filterBottom = document.querySelector<HTMLElement>(".mobile-category-filter")?.getBoundingClientRect().bottom ?? 136;
+        const activeLine = filterBottom + 18;
+        let currentHeading = headings[0];
+        for (const heading of headings) {
+          if (heading.getBoundingClientRect().top > activeLine) break;
+          currentHeading = heading;
+        }
+        const orderName = currentHeading.dataset.menuCategory as OrderName | undefined;
+        if (orderName) setActiveMenuCategory(orderName);
+      }
+    };
+    const scheduleUpdate = () => {
+      if (frame) window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(updateActiveCategory);
+    };
+
+    scheduleUpdate();
+    window.addEventListener("scroll", scheduleUpdate, { passive: true });
+    window.addEventListener("resize", scheduleUpdate);
+    return () => {
+      window.removeEventListener("scroll", scheduleUpdate);
+      window.removeEventListener("resize", scheduleUpdate);
+      if (frame) window.cancelAnimationFrame(frame);
+    };
+  }, [activeTab, menuCategoryKey]);
 
   useEffect(() => {
     if (!firebaseEnabled || !db || demoMode) return;
@@ -743,7 +794,6 @@ export default function HomePage() {
     const deliveredDate = order.deliveredAt ? manilaDateKey(new Date(order.deliveredAt)) : order.pickupDate;
     return deliveredDate === selectedPickupDate ? total + order.total : total;
   }, 0);
-  const menuProducts = products.filter((product) => !today || !isPromoExpired(product, today));
   const [calendarYear, calendarMonthNumber] = calendarMonth.split("-").map(Number);
   const calendarMonthDate = calendarMonth ? new Date(calendarYear, calendarMonthNumber - 1, 1) : null;
   const calendarOffset = calendarMonthDate ? calendarMonthDate.getDay() : 0;
@@ -820,13 +870,30 @@ export default function HomePage() {
             <div><span className="eyebrow"><span className="eyebrow-line" /> Order na, presyong kaya.</span><h2>Special Menu</h2></div>
             <p>Fresh from our kitchen,<br />ready for your home.</p>
           </div>
+          {menuCategories.length > 0 && <div className="mobile-category-filter">
+            <label htmlFor="mobile-menu-category">Browse category</label>
+            <div className="mobile-category-select-wrap">
+              <select
+                id="mobile-menu-category"
+                value={menuCategories.includes(activeMenuCategory as OrderName) ? activeMenuCategory : menuCategories[0]}
+                onChange={(event) => {
+                  const orderName = event.target.value as OrderName;
+                  setActiveMenuCategory(orderName);
+                  document.getElementById(menuCategoryId(orderName))?.scrollIntoView({ behavior: "smooth", block: "start" });
+                }}
+              >
+                {menuCategories.map((orderName) => <option key={orderName} value={orderName}>{orderName}</option>)}
+              </select>
+              <ChevronDown size={17} aria-hidden="true" />
+            </div>
+          </div>}
           {menuProducts.length === 0 && <div className="empty-menu">Our kitchen is adding something special. Check back soon.</div>}
           {orderNames.map((orderName) => {
             const categoryProducts = menuProducts.filter((product) => product.orderName === orderName);
             if (categoryProducts.length === 0) return null;
-            const categoryId = `menu-category-${orderNames.indexOf(orderName)}`;
+            const categoryId = menuCategoryId(orderName);
             return <section className="menu-category" key={orderName} aria-labelledby={categoryId}>
-              <h3 className="menu-category-heading" id={categoryId}>{orderName}</h3>
+              <h3 className="menu-category-heading" id={categoryId} data-menu-category={orderName}>{orderName}</h3>
               <div className="product-grid">
                 {categoryProducts.map((product, index) => {
                   const isPromo = product.saleType === "promo" && (!product.promoFrom || today >= product.promoFrom) && (!product.promoTo || today <= product.promoTo);

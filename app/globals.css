@@ -69,6 +69,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .section-heading { margin-bottom: 26px; display: flex; align-items: flex-end; justify-content: space-between; }
 .section-heading h2, .order-list-heading h2, .admin-products-heading h2 { margin: 8px 0 0; font-family: var(--serif); font-size: 34px; font-weight: 600; }
 .section-heading > p { margin: 0 4% 5px 0; color: var(--muted); font-size: 12px; line-height: 1.6; }
+.mobile-category-filter { display: none; }
 .menu-category { margin-top: 30px; }
 .menu-category-heading { margin: 0 0 15px; padding-bottom: 9px; border-bottom: 1px solid #ecd9ce; color: #754236; font-family: var(--serif); font-size: 24px; font-weight: 600; }
 .product-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 22px; }
@@ -334,6 +335,12 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   .section-heading { margin-bottom: 17px; }
   .section-heading h2 { margin-top: 5px; font-size: 29px; }
   .section-heading > p { margin: 0 0 3px; font-size: 10px; }
+  .mobile-category-filter { width: calc(100% + 34px); margin: 0 -17px 17px; padding: 9px 17px 11px; position: sticky; top: 66px; z-index: 14; display: block; border-top: 1px solid #f0dfd7; border-bottom: 1px solid #f0dfd7; background: #fffaf6f2; box-shadow: 0 5px 12px #6b38200c; backdrop-filter: blur(14px); }
+  .mobile-category-filter label { margin-bottom: 5px; display: block; color: #9a6d5b; font-size: 8px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+  .mobile-category-select-wrap { position: relative; }
+  .mobile-category-select-wrap select { width: 100%; min-height: 39px; padding: 0 38px 0 11px; appearance: none; border: 1px solid #ead8cf; border-radius: 11px; color: var(--ink); background: #fffdfa; font-size: 12px; font-weight: 600; }
+  .mobile-category-select-wrap > svg { position: absolute; top: 11px; right: 12px; color: #9a6d5b; pointer-events: none; }
+  .menu-category-heading { scroll-margin-top: 145px; }
   .product-grid { grid-template-columns: minmax(0, 1fr); gap: 13px; }
   .product-card { padding: 7px; display: grid; grid-template-columns: 37% 1fr; gap: 0; border-radius: 13px; }
   .product-image { min-height: 173px; height: 100%; border-radius: 9px; }
