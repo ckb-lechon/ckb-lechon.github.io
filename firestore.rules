@@ -21,6 +21,13 @@ service cloud.firestore {
         && request.resource.data.price is number
         && request.resource.data.price >= 0
         && request.resource.data.saleType in ['regular', 'promo']
+        && (request.resource.data.saleType == 'regular'
+          || (request.resource.data.keys().hasAll(['promoFrom', 'promoTo'])
+            && request.resource.data.promoFrom is string
+            && request.resource.data.promoTo is string
+            && request.resource.data.promoFrom.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+            && request.resource.data.promoTo.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+            && request.resource.data.promoFrom <= request.resource.data.promoTo))
         && request.resource.data.imageUrl is string
         && request.resource.data.active is bool;
     }
