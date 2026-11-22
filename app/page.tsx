@@ -286,6 +286,10 @@ export default function HomePage() {
   const menuProducts = products.filter((product) => !today || !isPromoExpired(product, today));
   const menuCategories = orderNames.filter((orderName) => menuProducts.some((product) => product.orderName === orderName));
   const menuCategoryKey = menuCategories.join("|");
+  const adminMenuProducts = [...products].sort((a, b) =>
+    a.orderName.localeCompare(b.orderName, undefined, { sensitivity: "base" })
+      || a.description.localeCompare(b.description, undefined, { sensitivity: "base" }),
+  );
 
   useEffect(() => {
     const now = new Date();
@@ -1013,7 +1017,7 @@ export default function HomePage() {
             ? <div className="admin-empty">No delivered orders match these filters.</div>
             : <div className="admin-order-list">{filteredDeliveredOrders.map(renderAdminOrder)}</div>}
         <div className="admin-products-heading"><div><h2>Menu items</h2><span>Manage what customers can order.</span></div></div>
-        {products.length === 0 ? <div className="admin-empty">No active menu items. Add an item to make it available to customers.</div> : <div className="admin-products-list">{products.map((product) => <article key={product.id}><div className="admin-product-photo" style={{ backgroundImage: `url("${product.imageUrl}")` }} /><div className="admin-product-copy"><strong>{product.orderName}</strong><span>{peso(product.price)} · {product.saleType === "promo" ? `Promo${product.promoFrom ? ` from ${formatDate(product.promoFrom)}` : ""}` : "Regular"}</span></div>{isPromoExpired(product, today) && <span className="expired-promo-label">Expired Promo</span>}<button className="edit-product" onClick={() => openProductForm(product)}>Edit</button><button className="remove-product" onClick={() => deleteProduct(product)} disabled={removingProductId === product.id}>{removingProductId === product.id ? "Deleting…" : "Remove"}</button></article>)}</div>}
+        {products.length === 0 ? <div className="admin-empty">No active menu items. Add an item to make it available to customers.</div> : <div className="admin-products-list">{adminMenuProducts.map((product) => <article key={product.id}><div className="admin-product-photo" style={{ backgroundImage: `url("${product.imageUrl}")` }} /><div className="admin-product-copy"><strong>{product.orderName}</strong><span>{peso(product.price)} · {product.saleType === "promo" ? `Promo${product.promoFrom ? ` from ${formatDate(product.promoFrom)}` : ""}` : "Regular"}</span></div>{isPromoExpired(product, today) && <span className="expired-promo-label">Expired Promo</span>}<button className="edit-product" onClick={() => openProductForm(product)}>Edit</button><button className="remove-product" onClick={() => deleteProduct(product)} disabled={removingProductId === product.id}>{removingProductId === product.id ? "Deleting…" : "Remove"}</button></article>)}</div>}
       </section>}
 
       {activeTab === "users" && canManageUsers && currentUser && <section className="dashboard-section admin-section">
