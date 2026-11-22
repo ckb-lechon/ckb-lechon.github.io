@@ -158,7 +158,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .calendar-orders-table td:last-child a { color: #9b472c; text-decoration: none; white-space: nowrap; }
 .calendar-orders-table td:last-child a:hover { text-decoration: underline; }
 .order-name-link { padding: 0; border: 0; color: var(--tomato); background: transparent; font: inherit; font-weight: 700; text-align: left; cursor: pointer; }
-.order-name-link:hover { text-decoration: underline; }
+.order-name-link:hover { text-decoration: none; }
 .order-name-link:focus-visible { border-radius: 3px; outline: 2px solid #ff960d; outline-offset: 2px; }
 .admin-order-item .order-name-link { overflow: hidden; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
 .admin-users-table { min-width: 560px; }
