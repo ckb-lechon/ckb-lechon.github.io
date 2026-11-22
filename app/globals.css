@@ -82,7 +82,6 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .product-card-2 .product-image { background-color: #edbb83; }
 .product-tag { position: absolute; top: 13px; left: 12px; min-height: 24px; padding: 0 9px; display: inline-flex; align-items: center; gap: 5px; border: 1px solid #ffffff9e; border-radius: 7px; color: #55251b; background: #fffaf0e8; font-size: 8px; font-weight: 700; }
 .promo-tag { color: #77230f; background: #ffcf96ed; }
-.product-heart { position: absolute; right: 12px; bottom: 12px; width: 37px; height: 37px; display: grid; place-items: center; border: 1px solid #fff; border-radius: 13px; color: #5b281d; background: #fffaf1e8; box-shadow: 2px 3px 6px #3a130c26; transform: rotate(-5deg); }
 .product-info { padding: 13px 10px 11px; }
 .product-title-line { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
 .product-title-line h3 { margin: 0; font-family: var(--serif); font-size: 19px; font-weight: 600; }
@@ -351,8 +350,6 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   .product-image { min-height: 173px; height: 100%; border-radius: 9px; }
   .product-tag { top: 8px; left: 7px; min-height: 20px; padding: 0 6px; gap: 3px; font-size: 7px; }
   .product-tag svg { width: 10px; }
-  .product-heart { right: 7px; bottom: 7px; width: 30px; height: 30px; border-radius: 10px; }
-  .product-heart svg { width: 14px; }
   .product-info { min-width: 0; padding: 10px 9px 7px 11px; display: flex; flex-direction: column; justify-content: center; }
   .product-title-line { align-items: flex-start; gap: 6px; }
   .product-title-line h3 { font-size: 17px; }
