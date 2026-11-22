@@ -937,7 +937,9 @@ export default function HomePage() {
           </div>}
           {menuProducts.length === 0 && <div className="empty-menu">Our kitchen is adding something special. Check back soon.</div>}
           {orderNames.map((orderName) => {
-            const categoryProducts = menuProducts.filter((product) => product.orderName === orderName);
+            const categoryProducts = menuProducts
+              .filter((product) => product.orderName === orderName)
+              .sort((a, b) => a.description.localeCompare(b.description, undefined, { sensitivity: "base" }));
             if (categoryProducts.length === 0) return null;
             const categoryId = menuCategoryId(orderName);
             return <section className="menu-category" key={orderName} aria-labelledby={categoryId}>
