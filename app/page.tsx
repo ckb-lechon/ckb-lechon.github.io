@@ -26,7 +26,6 @@ import { generateReactHelpers } from "@uploadthing/react";
 import type { AnyFileRoute } from "uploadthing/types";
 import {
   Download,
-  ArrowDownRight,
   ArrowLeft,
   ArrowRight,
   Banknote,
@@ -983,7 +982,6 @@ export default function HomePage() {
             <div className="eyebrow"><span className="eyebrow-line" /> THE TABLE IS WAITING</div>
             <h1 id="hero-title">Ang lami-an nga<br /><em>golden lechon.</em></h1>
             <p>Slow-roasted, proudly Filipino, and always worth gathering for.</p>
-            <button className="hero-cta" onClick={() => document.getElementById("menu")?.scrollIntoView({ behavior: "smooth" })}>Find your feast <ArrowDownRight size={17} /></button>
           </div>
           <div className="hero-photo" role="img" aria-label="A generous spread of grilled Filipino feast food">
             <div className="hero-note"><span>Made for</span><strong>the whole<br />pamilya.</strong><Sparkles size={17} /></div>
