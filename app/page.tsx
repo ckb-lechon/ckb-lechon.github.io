@@ -1071,6 +1071,7 @@ export default function HomePage() {
                     </div>
                     <div className="product-info">
                       <div className="product-title-line"><h3>{product.orderName}</h3><span>{peso(product.price)}</span></div>
+                      {supportsStock(product.orderName) && product.stock !== undefined && <strong className="product-stock">Stock: {product.stock}</strong>}
                       <p>{product.description}</p>
                       {isPromo && product.promoTo && <small className="promo-date">Promo through {formatDate(product.promoTo)}</small>}
                       {!admin && <button className="order-button" onClick={() => requestOrder(product)}>Order this <ArrowRight size={15} /></button>}
