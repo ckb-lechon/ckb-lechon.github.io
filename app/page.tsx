@@ -39,6 +39,7 @@ import {
   ChevronRight,
   CircleAlert,
   CircleHelp,
+  ClipboardCheck,
   Clock3,
   Eye,
   EyeOff,
@@ -101,6 +102,7 @@ type Product = {
   name: string;
   orderName: OrderName;
   description: string;
+  food?: string[];
   stock?: number;
   lastStockOrderId?: string;
   price: number;
@@ -130,6 +132,12 @@ type CustomerOrder = {
   productId: string;
   productName: string;
   imageUrl: string;
+  description?: string;
+  descriptionDone?: boolean;
+  food?: string[];
+  cookedFoodIndexes?: number[];
+  policyAccepted?: boolean;
+  policyAcceptedAt?: number;
   quantity: number;
   stockDeducted?: boolean;
   total: number;
@@ -143,7 +151,7 @@ type CustomerOrder = {
   cancelledAt?: number | Timestamp;
 };
 
-type Tab = "shop" | "orders" | "admin" | "users";
+type Tab = "shop" | "orders" | "admin" | "checklist" | "users";
 type AuthMode = "login" | "signup";
 type ManagedUser = { uid: string; name: string; email: string; role: "admin" | "user" };
 
@@ -263,11 +271,16 @@ export default function HomePage() {
   const [authMode, setAuthMode] = useState<AuthMode>("login");
   const [postAuthTab, setPostAuthTab] = useState<Tab | null>(null);
   const [orderProduct, setOrderProduct] = useState<Product | null>(null);
+  const [orderPolicyConfirmationOpen, setOrderPolicyConfirmationOpen] = useState(false);
+  const [rescheduleDraft, setRescheduleDraft] = useState<{ order: CustomerOrder; pickupDate: string; pickupTime: string } | null>(null);
   const [selectedOrderProduct, setSelectedOrderProduct] = useState<Product | null>(null);
   const [cancelOrderConfirmation, setCancelOrderConfirmation] = useState<CustomerOrder | null>(null);
   const [orderActionConfirmation, setOrderActionConfirmation] = useState<{ order: CustomerOrder; action: "payment" | "delivered" } | null>(null);
+  const [foodChecklistConfirmation, setFoodChecklistConfirmation] = useState<{ order: CustomerOrder; itemType: "description" | "food"; foodIndex: number; foodName: string; nextChecked: boolean } | null>(null);
   const [productRemovalConfirmation, setProductRemovalConfirmation] = useState<Product | null>(null);
   const [confirmingOrderActionId, setConfirmingOrderActionId] = useState<string | null>(null);
+  const [updatingFoodChecklistId, setUpdatingFoodChecklistId] = useState<string | null>(null);
+  const [reschedulingOrderId, setReschedulingOrderId] = useState<string | null>(null);
   const [logoutConfirmationOpen, setLogoutConfirmationOpen] = useState(false);
   const [downpaymentQrOpen, setDownpaymentQrOpen] = useState(false);
   const [conversationOrder, setConversationOrder] = useState<CustomerOrder | null>(null);
@@ -283,6 +296,7 @@ export default function HomePage() {
   const [showAuthPassword, setShowAuthPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [productDraft, setProductDraft] = useState<Product | null>(null);
+  const [foodInput, setFoodInput] = useState("");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [orderQuantity, setOrderQuantity] = useState("1");
   const [pickupDate, setPickupDate] = useState("");
@@ -298,6 +312,7 @@ export default function HomePage() {
   const [changingRoleUid, setChangingRoleUid] = useState<string | null>(null);
   const [calendarMonth, setCalendarMonth] = useState("");
   const [selectedPickupDate, setSelectedPickupDate] = useState("");
+  const [expandedChecklistOrders, setExpandedChecklistOrders] = useState<Record<string, boolean>>({});
   const [activeMenuCategory, setActiveMenuCategory] = useState<OrderName | "">("");
   const canManage = Boolean(admin && (currentUser || demoMode));
   const canManageUsers = Boolean(
@@ -356,7 +371,7 @@ export default function HomePage() {
         setProfile(userProfile ? userProfile as Profile : blankProfile);
         setAdmin(isStaff);
         if (isStaff) setActiveTab("admin");
-        else setActiveTab((current) => current === "admin" || current === "users" ? "shop" : current);
+        else setActiveTab((current) => current === "admin" || current === "checklist" || current === "users" ? "shop" : current);
       });
     });
     return () => {
@@ -366,7 +381,9 @@ export default function HomePage() {
   }, []);
 
   useEffect(() => {
-    if (activeTab === "users" && !canManageUsers) {
+    if ((activeTab === "admin" || activeTab === "checklist") && !canManage) {
+      setActiveTab("shop");
+    } else if (activeTab === "users" && !canManageUsers) {
       setActiveTab(canManage ? "admin" : "shop");
     }
   }, [activeTab, canManage, canManageUsers]);
@@ -421,7 +438,8 @@ export default function HomePage() {
         .map((item) => {
           const data = item.data() as Omit<Product, "id" | "orderName"> & { orderName?: string };
           const orderName = normalizeOrderName(data.orderName ?? data.name);
-          return { id: item.id, ...data, name: orderName, orderName } as Product;
+          const food = Array.isArray(data.food) ? data.food.filter((value): value is string => typeof value === "string") : [];
+          return { id: item.id, ...data, food, name: orderName, orderName } as Product;
         })
         .filter((item) => !retiredSampleProductIds.has(item.id) && (admin || item.active))
         .sort((left, right) => orderNames.indexOf(left.orderName) - orderNames.indexOf(right.orderName) || left.name.localeCompare(right.name));
@@ -432,7 +450,18 @@ export default function HomePage() {
       const ordersQuery = admin ? orderCollection() : query(orderCollection(), where("userId", "==", currentUser.uid));
       stopOrders = onSnapshot(ordersQuery, (snapshot) => {
         const list = snapshot.docs
-          .map((item) => ({ id: item.id, ...item.data() }) as CustomerOrder)
+          .map((item) => {
+            const data = item.data() as Omit<CustomerOrder, "id">;
+            return {
+              id: item.id,
+              ...data,
+              descriptionDone: data.descriptionDone === true,
+              food: Array.isArray(data.food) ? data.food.filter((value): value is string => typeof value === "string") : undefined,
+              cookedFoodIndexes: Array.isArray(data.cookedFoodIndexes)
+                ? data.cookedFoodIndexes.filter((value): value is number => Number.isInteger(value) && value >= 0)
+                : [],
+            } as CustomerOrder;
+          })
           .filter((item) => admin || item.userId === currentUser.uid)
           .sort((left, right) => right.createdAt - left.createdAt);
         setOrders(list);
@@ -598,8 +627,18 @@ export default function HomePage() {
     }
   }
 
-  async function placeOrder(event: React.FormEvent<HTMLFormElement>) {
+  function requestOrderPolicyConfirmation(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    setOrderPolicyConfirmationOpen(true);
+  }
+
+  async function confirmOrderPolicy() {
+    if (busy) return;
+    setOrderPolicyConfirmationOpen(false);
+    await placeOrder();
+  }
+
+  async function placeOrder() {
     if (!orderProduct || !pickupDate || !pickupTime) return;
     const quantity = Number(orderQuantity);
     if (isPromoExpired(orderProduct, manilaDateKey(new Date()))) {
@@ -626,6 +665,10 @@ export default function HomePage() {
       productId: orderProduct.id,
       productName: orderProduct.name,
       imageUrl: orderProduct.imageUrl,
+      description: orderProduct.description,
+      descriptionDone: false,
+      food: orderProduct.food ?? [],
+      cookedFoodIndexes: [],
       quantity,
       total: orderProduct.price * quantity,
       downpayment: 0,
@@ -634,6 +677,8 @@ export default function HomePage() {
       paymentStatus: "due",
       status: "pending",
       createdAt: Date.now(),
+      policyAccepted: true,
+      policyAcceptedAt: Date.now(),
     };
     setBusy(true);
     try {
@@ -686,6 +731,8 @@ export default function HomePage() {
               stockDeducted: true,
               productName: currentOrderName,
               imageUrl: productData.imageUrl,
+              description: productData.description,
+              food: Array.isArray(productData.food) ? productData.food : [],
               total: productData.price * quantity,
             });
           });
@@ -743,6 +790,7 @@ export default function HomePage() {
       const { id, stock, ...draftData } = productDraft;
       const data = {
         ...draftData,
+        food: foodInput.split(/[,\n]/).map((value) => value.trim()).filter(Boolean),
         ...(supportsStock(productDraft.orderName) && stock !== undefined ? { stock } : {}),
         name: productDraft.orderName,
         imageUrl,
@@ -862,6 +910,80 @@ export default function HomePage() {
       setNotice(error instanceof Error ? error.message : "Unable to update this order.");
     } finally {
       setConfirmingOrderActionId(null);
+    }
+  }
+
+  async function confirmFoodChecklist() {
+    if (!foodChecklistConfirmation || updatingFoodChecklistId) return;
+    const { order: requestedOrder, itemType, foodIndex, foodName, nextChecked } = foodChecklistConfirmation;
+    const order = orders.find((item) => item.id === requestedOrder.id);
+    if (!order || order.status === "cancelled") {
+      setFoodChecklistConfirmation(null);
+      setNotice("This order is no longer available for the checklist.");
+      return;
+    }
+    const food = foodForOrder(order);
+    const description = descriptionForOrder(order);
+    if ((itemType === "description" ? description : food[foodIndex]) !== foodName) {
+      setFoodChecklistConfirmation(null);
+      setNotice("This checklist item has changed. Refresh the checklist and try again.");
+      return;
+    }
+
+    const checkedIndexes = new Set(order.cookedFoodIndexes ?? []);
+    if (itemType === "food") {
+      if (nextChecked) checkedIndexes.add(foodIndex);
+      else checkedIndexes.delete(foodIndex);
+    }
+
+    setUpdatingFoodChecklistId(order.id);
+    try {
+      await updateOrder(order.id, itemType === "description"
+        ? { description, descriptionDone: nextChecked }
+        : { food, cookedFoodIndexes: [...checkedIndexes].sort((left, right) => left - right) });
+      setFoodChecklistConfirmation(null);
+      setNotice(`${foodName} checklist updated.`);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Unable to update the checklist.");
+    } finally {
+      setUpdatingFoodChecklistId(null);
+    }
+  }
+
+  function requestOrderReschedule(order: CustomerOrder) {
+    if (order.status !== "pending") return;
+    setRescheduleDraft({ order, pickupDate: order.pickupDate, pickupTime: order.pickupTime });
+  }
+
+  async function saveOrderReschedule(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!rescheduleDraft || reschedulingOrderId) return;
+    const order = orders.find((item) => item.id === rescheduleDraft.order.id);
+    if (!order || order.status !== "pending") {
+      setRescheduleDraft(null);
+      setNotice("This order can no longer be rescheduled.");
+      return;
+    }
+    const product = products.find((item) => item.id === order.productId);
+    const earliestDate = today || localDateKey(new Date());
+    if (rescheduleDraft.pickupDate < earliestDate || !rescheduleDraft.pickupTime) {
+      setNotice("Choose a valid pickup date and time.");
+      return;
+    }
+    if (product && !isPickupDateEligible(product, rescheduleDraft.pickupDate)) {
+      setNotice("Choose a pickup date within this promo period.");
+      return;
+    }
+
+    setReschedulingOrderId(order.id);
+    try {
+      await updateOrder(order.id, { pickupDate: rescheduleDraft.pickupDate, pickupTime: rescheduleDraft.pickupTime });
+      setRescheduleDraft(null);
+      setNotice("Pickup rescheduled.");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Unable to reschedule this pickup.");
+    } finally {
+      setReschedulingOrderId(null);
     }
   }
 
@@ -1024,17 +1146,18 @@ export default function HomePage() {
   function openProductForm(product?: Product) {
     const orderName = normalizeOrderName(product?.orderName ?? product?.name);
     const item = product
-      ? { ...product, name: orderName, orderName }
-      : { id: "", name: orderName, orderName, description: "", price: 0, saleType: "regular" as const, imageUrl: "", active: true };
+      ? { ...product, food: product.food ?? [], name: orderName, orderName }
+      : { id: "", name: orderName, orderName, description: "", food: [], price: 0, saleType: "regular" as const, imageUrl: "", active: true };
     setEditingProduct(product ?? null);
     setProductDraft({ ...item });
+    setFoodInput((product?.food ?? []).join(", "));
     setImageFile(null);
   }
 
   function openOrderProductCard(order: CustomerOrder) {
     const product = products.find((item) => item.id === order.productId);
     if (product) {
-      setSelectedOrderProduct(product);
+      setSelectedOrderProduct({ ...product, food: order.food ?? product.food ?? [] });
       return;
     }
     const orderName = normalizeOrderName(order.productName);
@@ -1043,6 +1166,7 @@ export default function HomePage() {
       name: order.productName,
       orderName,
       description: "Menu details are no longer available.",
+      food: order.food ?? [],
       price: order.quantity > 0 ? order.total / order.quantity : order.total,
       saleType: "regular",
       imageUrl: order.imageUrl,
@@ -1056,6 +1180,7 @@ export default function HomePage() {
       showSignIn("login");
       return;
     }
+    setOrderPolicyConfirmationOpen(false);
     setOrderProduct(product);
     setOrderQuantity("1");
     setPickupDate("");
@@ -1079,7 +1204,9 @@ export default function HomePage() {
     return (!deliveredDateFilter || dateKey === deliveredDateFilter)
       && (!deliveredMonthFilter || dateKey.slice(0, 7) === deliveredMonthFilter);
   });
-  const filteredOrders = orders.filter((order) => order.status !== "delivered" && (dateFilter === "all" || (dateFilter === "pending" ? order.status === "pending" : orderBalance(order) > 0)));
+  const filteredOrders = orders
+    .filter((order) => order.status !== "delivered" && (dateFilter === "all" || (dateFilter === "pending" ? order.status === "pending" : orderBalance(order) > 0)))
+    .sort((left, right) => right.createdAt - left.createdAt);
   const signedIn = Boolean(currentUser || demoMode);
   const orderOwnerId = currentUser?.uid ?? (demoMode === "customer" ? "demo-customer" : null);
   const myOrders = orderOwnerId ? orders.filter((order) => order.userId === orderOwnerId && order.status !== "cancelled") : [];
@@ -1101,6 +1228,17 @@ export default function HomePage() {
     return groupedOrders;
   }, {});
   const selectedDateOrders = ordersByPickupDate[selectedPickupDate] ?? [];
+  const selectedChecklistOrders = selectedDateOrders.filter((order) => order.status === "pending").sort((left, right) =>
+    left.pickupTime.localeCompare(right.pickupTime) || left.createdAt - right.createdAt,
+  );
+
+  function foodForOrder(order: CustomerOrder) {
+    return order.food ?? products.find((product) => product.id === order.productId)?.food ?? [];
+  }
+
+  function descriptionForOrder(order: CustomerOrder) {
+    return order.description ?? products.find((product) => product.id === order.productId)?.description ?? "";
+  }
 
   function changeCalendarMonth(offset: number) {
     if (!calendarMonthDate) return;
@@ -1137,7 +1275,7 @@ export default function HomePage() {
       {!firebaseEnabled && <div className="demo-ribbon"><Sparkles size={13} /> Preview mode · connect Firebase for live ordering</div>}
       {firebaseEnabled && demoMode && <div className="demo-ribbon"><Sparkles size={13} /> Local {demoMode} preview · changes stay on this device</div>}
 
-      <header className="topbar">
+      <header className={canManage ? "topbar admin-topbar" : "topbar"}>
         <button className="brand-lockup" onClick={() => setActiveTab("shop")} aria-label="CKB Lechon home">
           <span className="brand-stamp brand-icon" aria-hidden="true" />
           <span className="brand-words"><strong>CKB Lechon</strong><small>CK Bless Lechon House</small></span>
@@ -1146,12 +1284,14 @@ export default function HomePage() {
           <button className={activeTab === "shop" ? "nav-link active" : "nav-link"} onClick={() => setActiveTab("shop")}>Menu</button>
           {signedIn && !canManage && <button className={activeTab === "orders" ? "nav-link active" : "nav-link"} onClick={requestOrders}>My Orders</button>}
           {canManage && <button className={activeTab === "admin" ? "nav-link active" : "nav-link"} onClick={() => setActiveTab("admin")}>Order List</button>}
+          {canManage && <button className={activeTab === "checklist" ? "nav-link active" : "nav-link"} onClick={() => setActiveTab("checklist")}>Order Checklist</button>}
           {canManageUsers && <button className={activeTab === "users" ? "nav-link active" : "nav-link"} onClick={() => setActiveTab("users")}>Users</button>}
         </nav>
         <div className="topbar-actions">
           {!signedIn ? <button className="sign-in-button" onClick={() => showSignIn("login")}>Sign in <ArrowRight size={16} /></button> : <>
             <div className="profile-chip"><span className="profile-dot"><UserRound size={15} aria-hidden="true" /></span><span>{profile.firstName || "Account"}</span></div>
             <button className="mobile-menu" onClick={() => canManage ? setActiveTab("admin") : requestOrders()} aria-label={canManage ? "Order List" : "My Orders"} aria-current={activeTab === (canManage ? "admin" : "orders") ? "page" : undefined}>{canManage ? <List size={19} /> : <ShoppingBag size={19} />}</button>
+            {canManage && <button className="mobile-menu" onClick={() => setActiveTab("checklist")} aria-label="Order Checklist" aria-current={activeTab === "checklist" ? "page" : undefined}><ClipboardCheck size={19} /></button>}
             {canManageUsers && <button className="mobile-menu" onClick={() => setActiveTab("users")} aria-label="Users" aria-current={activeTab === "users" ? "page" : undefined}><UsersRound size={19} /></button>}
             <button className="logout-button" onClick={requestLogout} aria-label="Log out" title="Log out"><LogOut size={16} /><span>Log out</span></button>
           </>}
@@ -1226,6 +1366,7 @@ export default function HomePage() {
                     <div className="product-info">
                       <div className="product-title-line"><h3>{product.orderName}</h3><span>{peso(product.price)}</span></div>
                       {supportsStock(product.orderName) && <strong className="product-stock">Stock: {typeof product.stock === "number" ? product.stock : "Not set"}</strong>}
+                      {product.food && product.food.length > 0 && <div className="product-food-tags" aria-label="Food included">{product.food.map((food, foodIndex) => <span className="product-food-tag" key={`${food}-${foodIndex}`}>{food}</span>)}</div>}
                       <p>{product.description}</p>
                       {isPromo && product.promoTo && <small className="promo-date">Promo through {formatDate(product.promoTo)}</small>}
                       {!admin && <button className="order-button" onClick={() => requestOrder(product)} disabled={stockUnavailable}>
@@ -1285,7 +1426,7 @@ export default function HomePage() {
           </section>
           <section className="admin-selected-date" aria-live="polite" aria-labelledby="selected-date-heading">
             <div className="selected-date-heading"><div><span className="eyebrow">SELECTED DATE</span><h2 id="selected-date-heading">{selectedPickupDate ? formatCalendarDate(selectedPickupDate, { month: "long", day: "numeric", year: "numeric" }) : "Choose a date"}</h2></div><span className="selected-date-count">{selectedDateOrders.length} {selectedDateOrders.length === 1 ? "order" : "orders"}</span></div>
-            {selectedDateOrders.length === 0 ? <div className="calendar-empty-state">No orders scheduled for this date.</div> : <div className="calendar-orders-table-wrap"><table className="calendar-orders-table"><thead><tr><th>Name</th><th>Order</th><th>Balance</th><th>Contact No.</th></tr></thead><tbody>{selectedDateOrders.map((order) => <tr key={order.id}><td>{order.customer}</td><td>{order.quantity} {order.quantity === 1 ? "item" : "items"} · <button type="button" className="order-name-link" onClick={() => openOrderProductCard(order)}>{order.productName}</button></td><td><span className={orderBalance(order) === 0 ? "calendar-balance paid" : "calendar-balance"}>{orderBalance(order) === 0 ? "Paid" : peso(orderBalance(order))}</span></td><td><a href={`tel:${order.phone}`}>{order.phone}</a></td></tr>)}</tbody></table></div>}
+            {selectedDateOrders.length === 0 ? <div className="calendar-empty-state">No orders scheduled for this date.</div> : <div className="calendar-orders-table-wrap"><table className="calendar-orders-table pickup-calendar-orders-table"><thead><tr><th>Name</th><th>Order</th><th>Balance</th><th>Action</th></tr></thead><tbody>{selectedDateOrders.map((order) => <tr key={order.id}><td>{order.customer}</td><td>{order.quantity} {order.quantity === 1 ? "item" : "items"} · <button type="button" className="order-name-link" onClick={() => openOrderProductCard(order)}>{order.productName}</button></td><td><span className={orderBalance(order) === 0 ? "calendar-balance paid" : "calendar-balance"}>{orderBalance(order) === 0 ? "Paid" : peso(orderBalance(order))}</span></td><td><button type="button" className="reschedule-order-button" onClick={() => requestOrderReschedule(order)} disabled={order.status !== "pending"} title={order.status !== "pending" ? "Only pending orders can be rescheduled." : undefined}>Reschedule</button></td></tr>)}</tbody></table></div>}
           </section>
         </div>
         <div className="admin-metrics"><div><span>ALL ORDERS</span><strong>{orders.length.toString().padStart(2, "0")}</strong><PackageCheck size={17} /></div><div><span>NEEDS PAYMENT</span><strong>{orders.filter((item) => item.status !== "cancelled" && orderBalance(item) > 0).length.toString().padStart(2, "0")}</strong><CircleHelp size={17} /></div><div><span>READY TO PICK UP</span><strong>{orders.filter((item) => item.status === "pending").length.toString().padStart(2, "0")}</strong><Clock3 size={17} /></div><div><span>TOTAL SOLD</span><strong>{peso(selectedDateTotalSold)}</strong><Banknote size={17} /></div></div>
@@ -1306,6 +1447,62 @@ export default function HomePage() {
             : <div className="admin-order-list">{filteredDeliveredOrders.map(renderAdminOrder)}</div>}
         <div className="admin-products-heading"><div><h2>Menu items</h2><span>Manage what customers can order.</span></div></div>
         {products.length === 0 ? <div className="admin-empty">No active menu items. Add an item to make it available to customers.</div> : <div className="admin-products-list">{adminMenuProducts.map((product) => <article key={product.id}><div className="admin-product-photo" style={{ backgroundImage: `url("${product.imageUrl}")` }} /><div className="admin-product-copy"><strong>{product.orderName}</strong><span>{peso(product.price)} · {product.saleType === "promo" ? `Promo${product.promoFrom ? ` from ${formatDate(product.promoFrom)}` : ""}` : "Regular"}</span></div>{isPromoExpired(product, today) && <span className="expired-promo-label">Expired Promo</span>}<button className="edit-product" onClick={() => openProductForm(product)}>Edit</button><button className="remove-product" onClick={() => setProductRemovalConfirmation(product)} disabled={removingProductId === product.id}>{removingProductId === product.id ? "Removing…" : "Remove"}</button></article>)}</div>}
+      </section>}
+
+      {activeTab === "checklist" && canManage && <section className="dashboard-section admin-section">
+        <div className="dashboard-heading"><div><span className="eyebrow"><span className="eyebrow-line" /> CKB LECHON HOUSE</span><h1>Order Checklist<span className="heading-period">.</span></h1><p>Mark food items done for each pickup.</p></div></div>
+        <div className="admin-calendar-layout">
+          <section className="admin-calendar-card" aria-labelledby="checklist-calendar-heading">
+            <div className="admin-calendar-toolbar">
+              <button className="calendar-nav-button" onClick={() => changeCalendarMonth(-1)} aria-label="Previous month"><ChevronLeft size={17} /></button>
+              <h2 id="checklist-calendar-heading">{calendarMonthDate?.toLocaleDateString("en-PH", { month: "long", year: "numeric" })}</h2>
+              <button className="calendar-nav-button" onClick={() => changeCalendarMonth(1)} aria-label="Next month"><ChevronRight size={17} /></button>
+              <button className="calendar-today-button" onClick={selectTodayInCalendar}>Today</button>
+            </div>
+            <div className="admin-calendar-weekdays" aria-hidden="true">{["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((weekday) => <span key={weekday}>{weekday}</span>)}</div>
+            <div className="admin-calendar-days">
+              {Array.from({ length: calendarOffset }, (_, index) => <span className="admin-calendar-empty-day" key={`checklist-empty-${index}`} />)}
+              {calendarDays.map((day) => {
+                const dateKey = localDateKey(new Date(calendarYear, calendarMonthNumber - 1, day));
+                const dayOrderCount = (ordersByPickupDate[dateKey] ?? []).filter((order) => order.status === "pending").length;
+                return <button className={`admin-calendar-day${dateKey === selectedPickupDate ? " selected" : ""}${dateKey === todayKey ? " today" : ""}${dayOrderCount ? " has-orders" : ""}`} key={dateKey} onClick={() => setSelectedPickupDate(dateKey)} aria-pressed={dateKey === selectedPickupDate} aria-label={`${formatCalendarDate(dateKey, { weekday: "long", month: "long", day: "numeric" })}, ${dayOrderCount} ${dayOrderCount === 1 ? "order" : "orders"}`}><span>{day}</span>{dayOrderCount > 0 && <span className="admin-calendar-count">{dayOrderCount}</span>}</button>;
+              })}
+            </div>
+          </section>
+          <section className="admin-selected-date checklist-selected-date" aria-live="polite" aria-labelledby="checklist-selected-date-heading">
+            <div className="selected-date-heading"><div><span className="eyebrow">ORDERS FOR THIS DATE</span><h2 id="checklist-selected-date-heading">{selectedPickupDate ? formatCalendarDate(selectedPickupDate, { month: "long", day: "numeric", year: "numeric" }) : "Choose a date"}</h2></div><span className="selected-date-count">{selectedChecklistOrders.length} {selectedChecklistOrders.length === 1 ? "order" : "orders"}</span></div>
+            {selectedChecklistOrders.length === 0 ? <div className="calendar-empty-state">No orders for this date.</div> : <div className="checklist-order-list">{selectedChecklistOrders.map((order) => {
+              const food = foodForOrder(order);
+              const description = descriptionForOrder(order);
+              const expanded = Boolean(expandedChecklistOrders[order.id]);
+              const checkedIndexes = new Set(order.cookedFoodIndexes ?? []);
+              const checklistItemCount = food.length + (description ? 1 : 0);
+              const completedItemCount = food.filter((_, index) => checkedIndexes.has(index)).length + (order.descriptionDone ? 1 : 0);
+              const orderProgress = checklistItemCount > 0 ? `${completedItemCount}/${checklistItemCount} done` : "No items listed";
+              return <article className="checklist-order-card" key={order.id}>
+                <button type="button" className="checklist-order-toggle" aria-expanded={expanded} aria-controls={`checklist-food-${order.id}`} onClick={() => setExpandedChecklistOrders((current) => ({ ...current, [order.id]: !current[order.id] }))}>
+                  <span className="checklist-order-main"><strong>{order.productName} <span>× {order.quantity}</span></strong><small>{order.customer} · {formatTime(order.pickupTime)}</small></span>
+                  <span className="checklist-order-progress">{orderProgress}</span><ChevronDown size={18} className={expanded ? "expanded" : ""} />
+                </button>
+                {expanded && <div className="checklist-food-list" id={`checklist-food-${order.id}`}>
+                  {!description && food.length === 0 ? <p>No checklist items were saved for this order.</p> : <>
+                  {description && <label className={order.descriptionDone ? "checklist-food-item checklist-description-item done" : "checklist-food-item checklist-description-item"} key="order-description">
+                    <input type="checkbox" checked={order.descriptionDone === true} disabled={updatingFoodChecklistId === order.id} onChange={() => setFoodChecklistConfirmation({ order, itemType: "description", foodIndex: -1, foodName: description, nextChecked: !order.descriptionDone })} />
+                    <span>{description}</span>
+                  </label>}
+                  {food.map((foodName, foodIndex) => {
+                    const checked = checkedIndexes.has(foodIndex);
+                    return <label className={checked ? "checklist-food-item done" : "checklist-food-item"} key={`${foodName}-${foodIndex}`}>
+                      <input type="checkbox" checked={checked} disabled={updatingFoodChecklistId === order.id} onChange={() => setFoodChecklistConfirmation({ order, itemType: "food", foodIndex, foodName, nextChecked: !checked })} />
+                      <span>{foodName}</span>
+                    </label>;
+                  })}
+                  </>}
+                </div>}
+              </article>;
+            })}</div>}
+          </section>
+        </div>
       </section>}
 
       {activeTab === "users" && canManageUsers && currentUser && <section className="dashboard-section admin-section">
@@ -1384,9 +1581,24 @@ export default function HomePage() {
         return <div className="overlay confirmation-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) closeConfirmation(); }} onKeyDown={(event) => { if (event.key === "Escape") closeConfirmation(); }}><section className="dialog confirmation-dialog" role="alertdialog" aria-modal="true" aria-labelledby="order-action-title" aria-describedby="order-action-description"><span className="confirmation-icon">{isPayment ? <Banknote size={21} /> : <PackageCheck size={21} />}</span><div className="dialog-kicker">ORDER CONFIRMATION</div><h2 id="order-action-title">{isPayment ? "Confirm full payment?" : "Confirm order delivery?"}</h2><p id="order-action-description">{isPayment ? <>Has <strong>{order.customer}</strong> paid the full amount for this order? Confirm only after receiving the full payment; this will clear the remaining balance.</> : <>Are you sure <strong>{order.customer}</strong> is receiving this order? Confirm once it has been handed over to the customer.</>}</p><div className="confirmation-order-summary"><span>{order.productName} · {isPayment ? "Remaining balance" : `${formatDate(order.pickupDate)} · ${formatTime(order.pickupTime)}`}</span><strong>{isPayment ? peso(orderBalance(order)) : peso(order.total)}</strong></div><div className="confirmation-actions"><button className="confirmation-keep" autoFocus onClick={closeConfirmation} disabled={Boolean(confirmingOrderActionId)}>{isPayment ? "Not yet" : "Keep pending"}</button><button className="confirmation-accept" onClick={confirmOrderAction} disabled={Boolean(confirmingOrderActionId)}>{isConfirming ? "Saving…" : isPayment ? "Confirm full payment" : "Mark delivered"}</button></div></section></div>;
       })()}
 
+      {foodChecklistConfirmation && (() => {
+        const { order, foodName, nextChecked } = foodChecklistConfirmation;
+        const isSaving = updatingFoodChecklistId === order.id;
+        const closeConfirmation = () => { if (!updatingFoodChecklistId) setFoodChecklistConfirmation(null); };
+        return <div className="overlay confirmation-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) closeConfirmation(); }} onKeyDown={(event) => { if (event.key === "Escape") closeConfirmation(); }}><section className="dialog confirmation-dialog" role="alertdialog" aria-modal="true" aria-labelledby="food-checklist-confirmation-title" aria-describedby="food-checklist-confirmation-description"><span className="confirmation-icon"><ClipboardCheck size={21} /></span><div className="dialog-kicker">ORDER CHECKLIST</div><h2 id="food-checklist-confirmation-title">{nextChecked ? "Mark as done?" : "Undo done status?"}</h2><p id="food-checklist-confirmation-description">{nextChecked ? <>Confirm that <strong>{foodName}</strong> for <strong>{order.productName} × {order.quantity}</strong> is done.</> : <>Remove the done mark for <strong>{foodName}</strong> in <strong>{order.productName} × {order.quantity}</strong>?</>}</p><div className="confirmation-actions"><button className="confirmation-keep" autoFocus onClick={closeConfirmation} disabled={Boolean(updatingFoodChecklistId)}>Cancel</button><button className="confirmation-accept" onClick={confirmFoodChecklist} disabled={Boolean(updatingFoodChecklistId)}>{isSaving ? "Saving…" : nextChecked ? "Confirm done" : "Undo done"}</button></div></section></div>;
+      })()}
+
       {productRemovalConfirmation && <div className="overlay confirmation-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget && !removingProductId) setProductRemovalConfirmation(null); }} onKeyDown={(event) => { if (event.key === "Escape" && !removingProductId) setProductRemovalConfirmation(null); }}><section className="dialog confirmation-dialog" role="alertdialog" aria-modal="true" aria-labelledby="remove-product-title" aria-describedby="remove-product-description"><span className="confirmation-icon"><CircleAlert size={21} /></span><div className="dialog-kicker">THE CKB MENU</div><h2 id="remove-product-title">Remove this menu item?</h2><p id="remove-product-description">You’re removing <strong>{productRemovalConfirmation.orderName}</strong>. Customers will no longer be able to order it. This can’t be undone.</p><div className="confirmation-actions"><button className="confirmation-keep" autoFocus onClick={() => setProductRemovalConfirmation(null)} disabled={Boolean(removingProductId)}>Keep item</button><button className="confirmation-cancel" onClick={confirmProductRemoval} disabled={Boolean(removingProductId)}>{removingProductId === productRemovalConfirmation.id ? "Removing…" : "Remove item"}</button></div></section></div>}
 
       {logoutConfirmationOpen && <div className="overlay confirmation-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) setLogoutConfirmationOpen(false); }} onKeyDown={(event) => { if (event.key === "Escape") setLogoutConfirmationOpen(false); }}><section className="dialog confirmation-dialog" role="alertdialog" aria-modal="true" aria-labelledby="logout-title" aria-describedby="logout-description"><span className="confirmation-icon"><LogOut size={20} /></span><div className="dialog-kicker">CKB LECHON HOUSE</div><h2 id="logout-title">Logout Confirmation</h2><p id="logout-description">Are you sure you want to end your session?</p><div className="confirmation-actions"><button className="confirmation-keep" autoFocus onClick={() => setLogoutConfirmationOpen(false)}>Stay signed in</button><button className="confirmation-cancel" onClick={logout}>Log out</button></div></section></div>}
+
+      {rescheduleDraft && (() => {
+        const product = products.find((item) => item.id === rescheduleDraft.order.productId);
+        const minDate = product?.saleType === "promo" && product.promoFrom && product.promoFrom > (today || localDateKey(new Date()))
+          ? product.promoFrom
+          : today || localDateKey(new Date());
+        return <div className="overlay" onMouseDown={(event) => { if (event.target === event.currentTarget && !reschedulingOrderId) setRescheduleDraft(null); }} onKeyDown={(event) => { if (event.key === "Escape" && !reschedulingOrderId) setRescheduleDraft(null); }}><section className="dialog product-dialog reschedule-dialog" role="dialog" aria-modal="true" aria-labelledby="reschedule-order-title"><button className="dialog-close" onClick={() => setRescheduleDraft(null)} aria-label="Close reschedule form" disabled={Boolean(reschedulingOrderId)}><X size={19} /></button><div className="dialog-kicker">PICKUP CALENDAR</div><h2 id="reschedule-order-title">Reschedule pickup.</h2><p className="reschedule-order-summary">{rescheduleDraft.order.customer} · {rescheduleDraft.order.productName}</p><form className="auth-form" onSubmit={saveOrderReschedule}><div className="pickup-fields"><label>Pickup date<input required type="date" min={minDate} max={product?.saleType === "promo" ? product.promoTo : undefined} value={rescheduleDraft.pickupDate} onChange={(event) => setRescheduleDraft({ ...rescheduleDraft, pickupDate: event.target.value })} /></label><label>Pickup time<input required type="time" value={rescheduleDraft.pickupTime} onChange={(event) => setRescheduleDraft({ ...rescheduleDraft, pickupTime: event.target.value })} /></label></div>{product?.saleType === "promo" && <div className="pickup-note">Promo pickup dates: {formatDate(product.promoFrom ?? "")} – {formatDate(product.promoTo ?? "")}.</div>}<div className="confirmation-actions"><button type="button" className="confirmation-keep" onClick={() => setRescheduleDraft(null)} disabled={Boolean(reschedulingOrderId)}>Cancel</button><button className="confirmation-accept" disabled={Boolean(reschedulingOrderId)}>{reschedulingOrderId ? "Saving…" : "Save new pickup"}</button></div></form></section></div>;
+      })()}
 
       {selectedOrderProduct && <div className="overlay menu-item-preview-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) setSelectedOrderProduct(null); }}>
         <section className="dialog menu-item-preview-dialog" role="dialog" aria-modal="true" aria-labelledby="menu-item-preview-title" aria-describedby="menu-item-preview-description" onKeyDown={(event) => { if (event.key === "Escape") setSelectedOrderProduct(null); }}>
@@ -1397,14 +1609,17 @@ export default function HomePage() {
           <div className="menu-item-preview-copy">
             <div className="menu-item-preview-title"><h2 id="menu-item-preview-title">{selectedOrderProduct.orderName}</h2><strong>{peso(selectedOrderProduct.price)}</strong></div>
             {supportsStock(selectedOrderProduct.orderName) && <strong className="product-stock">Stock: {typeof selectedOrderProduct.stock === "number" ? selectedOrderProduct.stock : "Not set"}</strong>}
+            {selectedOrderProduct.food && selectedOrderProduct.food.length > 0 && <div className="product-food-tags" aria-label="Food included">{selectedOrderProduct.food.map((food, foodIndex) => <span className="product-food-tag" key={`${food}-${foodIndex}`}>{food}</span>)}</div>}
             <p id="menu-item-preview-description">{selectedOrderProduct.description || "Menu details are no longer available."}</p>
             {selectedOrderProduct.saleType === "promo" && selectedOrderProduct.promoTo && <small className="promo-date">Promo through {formatDate(selectedOrderProduct.promoTo)}</small>}
           </div>
         </section>
       </div>}
-      {orderProduct && <div className="overlay order-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) setOrderProduct(null); }}><section className="dialog order-dialog" role="dialog" aria-modal="true" aria-labelledby="pickup-title"><button className="dialog-close" onClick={() => setOrderProduct(null)} aria-label="Close"><X size={19} /></button><div className="order-dialog-photo" style={{ backgroundImage: `url("${orderProduct.imageUrl}")` }} /><div className="order-mobile-heading" aria-hidden="true"><div>MAKE IT A GATHERING</div><h2>Save your spot.</h2></div><div className="dialog-kicker">PLACE AN ORDER</div><h2 id="pickup-title">{orderProduct.name}</h2><p className="order-description">{orderProduct.description}</p><p className="order-summary"><span>Order total</span><strong>{peso(orderProduct.price * (Number(orderQuantity) || 0))}</strong></p><p className="order-mobile-summary"><strong>{orderProduct.name}</strong><span>{peso(orderProduct.price * (Number(orderQuantity) || 0))}</span></p><form className="auth-form" onSubmit={placeOrder}><label>Quantity{allowsDecimalQuantity(orderProduct.orderName) && " (decimal amounts allowed)"}<input type="number" min={allowsDecimalQuantity(orderProduct.orderName) ? 0.01 : 1} max={allowsDecimalQuantity(orderProduct.orderName) && typeof orderProduct.stock === "number" ? Math.min(99, orderProduct.stock) : 99} step={allowsDecimalQuantity(orderProduct.orderName) ? "any" : 1} required value={orderQuantity} onChange={(event) => setOrderQuantity(event.target.value)} /></label><div className="pickup-fields"><label>Pickup date<input required type="date" min={orderProduct.saleType === "promo" && orderProduct.promoFrom && orderProduct.promoFrom > today ? orderProduct.promoFrom : today} max={orderProduct.saleType === "promo" ? orderProduct.promoTo : undefined} value={pickupDate} onChange={(event) => setPickupDate(event.target.value)} /></label><label>Pickup time<input required type="time" value={pickupTime} onChange={(event) => setPickupTime(event.target.value)} /></label></div>{orderProduct.saleType === "promo" && <div className="pickup-note">Promo pickup dates: {formatDate(orderProduct.promoFrom ?? "")} – {formatDate(orderProduct.promoTo ?? "")}.</div>}{!signedIn && <div className="pickup-note">Sign in or try a preview to confirm your pickup.</div>}<button className="submit-button" disabled={busy || !isPickupDateEligible(orderProduct, pickupDate)}>{busy ? "Saving your pickup..." : "Confirm pickup"}<ArrowRight size={16} /></button></form></section></div>}
+      {orderProduct && <div className="overlay order-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) setOrderProduct(null); }}><section className="dialog order-dialog" role="dialog" aria-modal="true" aria-labelledby="pickup-title"><button className="dialog-close" onClick={() => setOrderProduct(null)} aria-label="Close"><X size={19} /></button><div className="order-dialog-photo" style={{ backgroundImage: `url("${orderProduct.imageUrl}")` }} /><div className="order-mobile-heading" aria-hidden="true"><div>MAKE IT A GATHERING</div><h2>Save your spot.</h2></div><div className="dialog-kicker">PLACE AN ORDER</div><h2 id="pickup-title">{orderProduct.name}</h2><p className="order-description">{orderProduct.description}</p><p className="order-summary"><span>Order total</span><strong>{peso(orderProduct.price * (Number(orderQuantity) || 0))}</strong></p><p className="order-mobile-summary"><strong>{orderProduct.name}</strong><span>{peso(orderProduct.price * (Number(orderQuantity) || 0))}</span></p><form className="auth-form" onSubmit={requestOrderPolicyConfirmation}><label>Quantity{allowsDecimalQuantity(orderProduct.orderName) && " (decimal amounts allowed)"}<input type="number" min={allowsDecimalQuantity(orderProduct.orderName) ? 0.01 : 1} max={allowsDecimalQuantity(orderProduct.orderName) && typeof orderProduct.stock === "number" ? Math.min(99, orderProduct.stock) : 99} step={allowsDecimalQuantity(orderProduct.orderName) ? "any" : 1} required value={orderQuantity} onChange={(event) => setOrderQuantity(event.target.value)} /></label><div className="pickup-fields"><label>Pickup date<input required type="date" min={orderProduct.saleType === "promo" && orderProduct.promoFrom && orderProduct.promoFrom > today ? orderProduct.promoFrom : today} max={orderProduct.saleType === "promo" ? orderProduct.promoTo : undefined} value={pickupDate} onChange={(event) => setPickupDate(event.target.value)} /></label><label>Pickup time<input required type="time" value={pickupTime} onChange={(event) => setPickupTime(event.target.value)} /></label></div>{orderProduct.saleType === "promo" && <div className="pickup-note">Promo pickup dates: {formatDate(orderProduct.promoFrom ?? "")} – {formatDate(orderProduct.promoTo ?? "")}.</div>}{!signedIn && <div className="pickup-note">Sign in or try a preview to confirm your pickup.</div>}<button className="submit-button" disabled={busy || !isPickupDateEligible(orderProduct, pickupDate)}>{busy ? "Saving your pickup..." : "Confirm pickup"}<ArrowRight size={16} /></button></form></section></div>}
 
-      {productDraft && <div className="overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) { setProductDraft(null); setEditingProduct(null); } }}><section className="dialog product-dialog" role="dialog" aria-modal="true" aria-labelledby="product-form-title"><button className="dialog-close" onClick={() => { setProductDraft(null); setEditingProduct(null); }} aria-label="Close"><X size={19} /></button><div className="dialog-kicker">THE CKB MENU</div><h2 id="product-form-title">{editingProduct ? "Edit menu item." : "Add something good."}</h2><form className="auth-form" onSubmit={saveProduct}><label>Order name<select required value={productDraft.orderName} onChange={(event) => setProductDraft({ ...productDraft, orderName: event.target.value as OrderName, name: event.target.value })}>{orderNames.map((orderName) => <option key={orderName} value={orderName}>{orderName}</option>)}</select></label><label>Description<textarea required rows={3} value={productDraft.description} onChange={(event) => setProductDraft({ ...productDraft, description: event.target.value })} /></label>{supportsStock(productDraft.orderName) && <label>Stock<input type="number" min="0" step="any" placeholder="Available stock" value={productDraft.stock ?? ""} onChange={(event) => setProductDraft({ ...productDraft, stock: event.target.value === "" ? undefined : Number(event.target.value) })} /></label>}<label>Price (₱)<input type="number" required min="0" step="0.01" value={productDraft.price || ""} onChange={(event) => setProductDraft({ ...productDraft, price: Number(event.target.value) })} /></label><label>Sale type<select value={productDraft.saleType} onChange={(event) => setProductDraft({ ...productDraft, saleType: event.target.value as Product["saleType"] })}><option value="regular">Regular</option><option value="promo">Promo</option></select></label>{productDraft.saleType === "promo" && <div className="name-fields"><label>Date From<input required type="date" max={productDraft.promoTo || undefined} value={productDraft.promoFrom || ""} onChange={(event) => setProductDraft({ ...productDraft, promoFrom: event.target.value })} /></label><label>Date To<input required type="date" min={productDraft.promoFrom || undefined} value={productDraft.promoTo || ""} onChange={(event) => setProductDraft({ ...productDraft, promoTo: event.target.value })} /></label></div>}<label>Upload image<input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => setImageFile(event.target.files?.[0] ?? null)} /></label>{!uploadThingConfigured && !demoMode && <div className="pickup-note">Configure the UploadThing Worker URL to enable image uploads.</div>}<button className="submit-button" disabled={busy}>{busy ? uploadingImage ? "Uploading image..." : "Saving..." : editingProduct ? "Save changes" : "Add to menu"}<ArrowRight size={16} /></button></form></section></div>}
+      {orderPolicyConfirmationOpen && orderProduct && <div className="overlay confirmation-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) setOrderPolicyConfirmationOpen(false); }} onKeyDown={(event) => { if (event.key === "Escape" && !busy) setOrderPolicyConfirmationOpen(false); }}><section className="dialog confirmation-dialog" role="alertdialog" aria-modal="true" aria-labelledby="order-policy-title" aria-describedby="order-policy-description"><span className="confirmation-icon"><CircleHelp size={21} /></span><div className="dialog-kicker">ORDERING POLICIES</div><h2 id="order-policy-title">Before you place your order.</h2><p id="order-policy-description">Please prepare the downpayment for your order. Downpayments are non-refundable once paid. You may reschedule, subject to stock availability. By selecting “I agree and place order,” you confirm that you have read and agree to these ordering policies.</p><div className="confirmation-actions"><button className="confirmation-keep" autoFocus onClick={() => setOrderPolicyConfirmationOpen(false)} disabled={busy}>Cancel</button><button className="confirmation-accept" onClick={confirmOrderPolicy} disabled={busy}>{busy ? "Placing order…" : "I agree and place order"}</button></div></section></div>}
+
+      {productDraft && <div className="overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) { setProductDraft(null); setEditingProduct(null); } }}><section className="dialog product-dialog" role="dialog" aria-modal="true" aria-labelledby="product-form-title"><button className="dialog-close" onClick={() => { setProductDraft(null); setEditingProduct(null); }} aria-label="Close"><X size={19} /></button><div className="dialog-kicker">THE CKB MENU</div><h2 id="product-form-title">{editingProduct ? "Edit menu item." : "Add something good."}</h2><form className="auth-form" onSubmit={saveProduct}><label>Order name<select required value={productDraft.orderName} onChange={(event) => setProductDraft({ ...productDraft, orderName: event.target.value as OrderName, name: event.target.value })}>{orderNames.map((orderName) => <option key={orderName} value={orderName}>{orderName}</option>)}</select></label><label>Description<textarea required rows={3} value={productDraft.description} onChange={(event) => setProductDraft({ ...productDraft, description: event.target.value })} /></label><label>Food<textarea rows={2} placeholder="Separate multiple foods with commas" value={foodInput} onChange={(event) => setFoodInput(event.target.value)} /></label>{supportsStock(productDraft.orderName) && <label>Stock<input type="number" min="0" step="any" placeholder="Available stock" value={productDraft.stock ?? ""} onChange={(event) => setProductDraft({ ...productDraft, stock: event.target.value === "" ? undefined : Number(event.target.value) })} /></label>}<label>Price (₱)<input type="number" required min="0" step="0.01" value={productDraft.price || ""} onChange={(event) => setProductDraft({ ...productDraft, price: Number(event.target.value) })} /></label><label>Sale type<select value={productDraft.saleType} onChange={(event) => setProductDraft({ ...productDraft, saleType: event.target.value as Product["saleType"] })}><option value="regular">Regular</option><option value="promo">Promo</option></select></label>{productDraft.saleType === "promo" && <div className="name-fields"><label>Date From<input required type="date" max={productDraft.promoTo || undefined} value={productDraft.promoFrom || ""} onChange={(event) => setProductDraft({ ...productDraft, promoFrom: event.target.value })} /></label><label>Date To<input required type="date" min={productDraft.promoFrom || undefined} value={productDraft.promoTo || ""} onChange={(event) => setProductDraft({ ...productDraft, promoTo: event.target.value })} /></label></div>}<label>Upload image<input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => setImageFile(event.target.files?.[0] ?? null)} /></label>{!uploadThingConfigured && !demoMode && <div className="pickup-note">Configure the UploadThing Worker URL to enable image uploads.</div>}<button className="submit-button" disabled={busy}>{busy ? uploadingImage ? "Uploading image..." : "Saving..." : editingProduct ? "Save changes" : "Add to menu"}<ArrowRight size={16} /></button></form></section></div>}
     </main>
   );
 }
