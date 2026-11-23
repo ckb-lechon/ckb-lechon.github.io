@@ -22,10 +22,11 @@ service cloud.firestore {
           'Belly',
           'Belly Bilao',
           'Belly Bilao Food Package',
-          'Whole Lechon',
-          'Lechon Kinilo',
+          'Karne Kinilo',
           'Lechon Food Package',
-          'Karne Kinilo'
+          'Lechon Kinilo',
+          'Tray',
+          'Whole Lechon'
         ]
         && request.resource.data.name == request.resource.data.orderName
         && request.resource.data.description is string

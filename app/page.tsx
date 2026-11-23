@@ -70,10 +70,11 @@ const orderNames = [
   "Belly",
   "Belly Bilao",
   "Belly Bilao Food Package",
-  "Whole Lechon",
-  "Lechon Kinilo",
-  "Lechon Food Package",
   "Karne Kinilo",
+  "Lechon Food Package",
+  "Lechon Kinilo",
+  "Tray",
+  "Whole Lechon",
 ] as const;
 const mobileMenuMessages = [
   "Lami kaayo barato pa gyud.",
