@@ -1207,7 +1207,9 @@ export default function HomePage() {
       && (!deliveredMonthFilter || dateKey.slice(0, 7) === deliveredMonthFilter);
   });
   const filteredOrders = adminOrders
-    .filter((order) => order.status !== "delivered" && (dateFilter === "all" || (dateFilter === "pending" ? order.status === "pending" : orderBalance(order) > 0)))
+    .filter((order) => order.status !== "delivered"
+      && order.pickupDate === selectedPickupDate
+      && (dateFilter === "all" || (dateFilter === "pending" ? order.status === "pending" : orderBalance(order) > 0)))
     .sort((left, right) => right.createdAt - left.createdAt);
   const signedIn = Boolean(currentUser || demoMode);
   const orderOwnerId = currentUser?.uid ?? (demoMode === "customer" ? "demo-customer" : null);
@@ -1432,7 +1434,7 @@ export default function HomePage() {
           </section>
         </div>
         <div className="admin-metrics"><div><span>ALL ORDERS</span><strong>{adminOrders.length.toString().padStart(2, "0")}</strong><PackageCheck size={17} /></div><div><span>NEEDS PAYMENT</span><strong>{adminOrders.filter((item) => orderBalance(item) > 0).length.toString().padStart(2, "0")}</strong><CircleHelp size={17} /></div><div><span>READY TO PICK UP</span><strong>{adminOrders.filter((item) => item.status === "pending").length.toString().padStart(2, "0")}</strong><Clock3 size={17} /></div><div><span>TOTAL SOLD</span><strong>{peso(selectedDateTotalSold)}</strong><Banknote size={17} /></div></div>
-        <div className="order-list-heading"><div><h2>The pickup list</h2><span>Customer orders, all in one place.</span></div><select aria-label="Filter orders" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)}><option value="all">All orders</option><option value="pending">Not yet delivered</option><option value="due">Needs full payment</option></select></div>
+        <div className="order-list-heading"><div><h2>The pickup list</h2><span>Orders for the selected pickup date.</span></div><select aria-label="Filter orders" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)}><option value="all">All orders</option><option value="pending">Not yet delivered</option><option value="due">Needs full payment</option></select></div>
         {filteredOrders.length === 0 ? <div className="admin-empty">No pickup orders match this filter.</div> : <div className="admin-order-list">{filteredOrders.map(renderAdminOrder)}</div>}
         <div className="order-list-heading delivered-orders-heading">
           <div><h2>Delivered Orders</h2><span>Orders handed over to customers.</span></div>
