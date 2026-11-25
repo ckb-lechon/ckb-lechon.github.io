@@ -63,7 +63,7 @@ async function handleUploadThing(request, env, context, url) {
       handleDaemonPromise: (promise) => context.waitUntil(promise),
     },
   });
-  return handlers(request);
+  return handlers[request.method](request);
 }
 
 function withCors(response, request, env) {
