@@ -30,9 +30,9 @@ npx wrangler secret put FIREBASE_API_KEY
 npm run deploy
 ```
 
-The app URL and UploadThing token are different settings. For local development, set `NEXT_PUBLIC_UPLOADTHING_URL=http://localhost:8787/api/uploadthing` in the project-root `.env.local`. Put `UPLOADTHING_TOKEN` and `FIREBASE_API_KEY` in `uploadthing-worker/.dev.vars` (copy `uploadthing-worker/.dev.vars.example`), then run `npm run dev` in `uploadthing-worker` alongside the Next.js app. Never put the UploadThing token in a `NEXT_PUBLIC_` variable.
+The app URL and UploadThing token are different settings. For local development, set `NEXT_PUBLIC_UPLOADTHING_URL=http://localhost:8787/api/uploadthing` in the project-root `.env.local`. Put `UPLOADTHING_TOKEN` and `FIREBASE_API_KEY` in `uploadthing-worker/.dev.vars` (copy `uploadthing-worker/.dev.vars.example`), then run `npm run dev` in `uploadthing-worker` alongside the Next.js app. Get `UPLOADTHING_TOKEN` from the UploadThing dashboard's **API Keys > V7** tab; use the Firebase web API key for `FIREBASE_API_KEY`. Never put the UploadThing token in a `NEXT_PUBLIC_` variable.
 
-For production, deploy the Worker and set `UPLOADTHING_TOKEN` and `FIREBASE_API_KEY` as Cloudflare Worker secrets. The GitHub Pages workflow reads `NEXT_PUBLIC_UPLOADTHING_URL` from the repository Actions variables; update it if the upload Worker hostname changes. The Worker validates the Firebase ID token, checks the server-managed admin profile, and accepts JPEG, PNG, or WebP images up to 8 MB.
+For production, deploy the Worker and set `UPLOADTHING_TOKEN` (the UploadThing V7 token) and `FIREBASE_API_KEY` (the Firebase web API key) as Cloudflare Worker secrets. Set the GitHub Actions variable `NEXT_PUBLIC_UPLOADTHING_URL` to the complete endpoint URL, including `https://` and `/api/uploadthing` (for example, `https://your-worker.workers.dev/api/uploadthing`). A bare Worker hostname is also normalized by the site at build time. Update the variable if the upload Worker hostname changes. The Worker validates the Firebase ID token, checks the server-managed admin profile, and accepts JPEG, PNG, or WebP images up to 8 MB.
 
 ## GitHub Pages
 
@@ -42,7 +42,7 @@ This project uses Next.js static export (`out/`), which is compatible with GitHu
 
 The root `wrangler.toml` serves the static export in `out/` as Worker static assets. In Cloudflare Workers Builds, use `npm run build` as the build command and `npx wrangler deploy` as the deploy command. Keep the Cloudflare Worker name set to `ckb-lechon-github-io`. This config prevents Wrangler from trying to migrate the static export to the OpenNext server adapter.
 
-To enable product image uploads on this site, set `NEXT_PUBLIC_UPLOADTHING_URL` as a Cloudflare Worker build variable to the separate upload Worker endpoint ending in `/api/uploadthing`. For GitHub Pages, set the same value as a repository Actions variable. Keep `UPLOADTHING_TOKEN` and `FIREBASE_API_KEY` as secrets on the upload Worker, not the site Worker.
+To enable product image uploads on this site, set `NEXT_PUBLIC_UPLOADTHING_URL` as a Cloudflare Worker build variable to the separate upload Worker endpoint, including `https://` and `/api/uploadthing` (for example, `https://your-worker.workers.dev/api/uploadthing`). For GitHub Pages, set the same value as a repository Actions variable. The site also accepts a bare Worker hostname and adds the scheme and route. Keep `UPLOADTHING_TOKEN` and `FIREBASE_API_KEY` as secrets on the upload Worker, not the site Worker.
 
 If deploying through **Cloudflare Pages** instead, choose the **Next.js (Static HTML Export)** preset, use `npm run build`, and set the build output directory to `out`; leave the deploy command unset.
 

@@ -61,7 +61,26 @@ import { useEffect, useState } from "react";
 import { auth, db, firebaseEnabled } from "@/lib/firebase";
 import OrderConversation from "./OrderConversation";
 
-const uploadThingUrl = process.env.NEXT_PUBLIC_UPLOADTHING_URL || "";
+function normalizeUploadThingUrl(value: string | undefined) {
+  const configuredUrl = value?.trim();
+  if (!configuredUrl) return "";
+
+  const isLocalHost = /^(?:localhost|127\.0\.0\.1|\[::1\])(?::\d+)?(?:\/|$)/i.test(configuredUrl);
+  const absoluteUrl = /^[a-z][a-z\d+.-]*:\/\//i.test(configuredUrl)
+    ? configuredUrl
+    : `${isLocalHost ? "http" : "https"}://${configuredUrl}`;
+
+  try {
+    const url = new URL(absoluteUrl);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return "";
+    if (url.pathname === "/") url.pathname = "/api/uploadthing";
+    return url.toString().replace(/\/$/, "");
+  } catch {
+    return "";
+  }
+}
+
+const uploadThingUrl = normalizeUploadThingUrl(process.env.NEXT_PUBLIC_UPLOADTHING_URL);
 const uploadThingConfigured = Boolean(uploadThingUrl);
 type CkbUploadRouter = { productImage: AnyFileRoute };
 const { uploadFiles } = generateReactHelpers<CkbUploadRouter>({ url: uploadThingUrl || "/api/uploadthing" });

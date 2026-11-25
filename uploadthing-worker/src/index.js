@@ -82,17 +82,23 @@ function withCors(response, request, env) {
 const worker = {
   async fetch(request, env, context) {
     const url = new URL(request.url);
-    if (url.pathname !== "/api/uploadthing") return new Response("Not found", { status: 404 });
+    if (url.pathname !== "/api/uploadthing") {
+      return withCors(Response.json({ message: "Upload route not found. Use /api/uploadthing." }, { status: 404 }), request, env);
+    }
     if (request.method === "OPTIONS") return withCors(new Response(null, { status: 204 }), request, env);
     if (request.method !== "GET" && request.method !== "POST") {
-      return withCors(new Response("Method not allowed", { status: 405 }), request, env);
+      return withCors(Response.json({ message: "Method not allowed." }, { status: 405 }), request, env);
+    }
+    const missingSecrets = ["UPLOADTHING_TOKEN", "FIREBASE_API_KEY"].filter((name) => !env[name]);
+    if (missingSecrets.length > 0) {
+      return withCors(Response.json({ message: `The upload Worker is missing the ${missingSecrets.join(" and ")} secret${missingSecrets.length === 1 ? "" : "s"}.` }, { status: 500 }), request, env);
     }
     try {
       const response = await handleUploadThing(request, env, context, url);
       return withCors(response, request, env);
     } catch (error) {
       console.error(error);
-      return withCors(new Response("The upload request could not be completed.", { status: 500 }), request, env);
+      return withCors(Response.json({ message: "The upload Worker failed. Check its Cloudflare logs for details." }, { status: 500 }), request, env);
     }
   },
 };
