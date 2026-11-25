@@ -51,7 +51,7 @@ function createUploadRouter(env) {
 }
 
 async function handleUploadThing(request, env, context, url) {
-  const handlers = createRouteHandler({
+  const handler = createRouteHandler({
     router: createUploadRouter(env),
     config: {
       token: env.UPLOADTHING_TOKEN,
@@ -63,7 +63,7 @@ async function handleUploadThing(request, env, context, url) {
       handleDaemonPromise: (promise) => context.waitUntil(promise),
     },
   });
-  return handlers[request.method](request);
+  return handler(request);
 }
 
 function withCors(response, request, env) {
