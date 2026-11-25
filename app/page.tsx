@@ -185,7 +185,7 @@ function kiloPriceOptions(product: Product | null | undefined) {
 function productPriceLabel(product: Product) {
   const options = kiloPriceOptions(product);
   return product.orderName === "Whole Lechon" && options.length > 0
-    ? `From ${peso(options[0].price)}`
+    ? `Starts from ${peso(Math.min(...options.map((option) => option.price)))}`
     : peso(product.price);
 }
 
