@@ -48,9 +48,9 @@ If deploying through **Cloudflare Pages** instead, choose the **Next.js (Static 
 
 ## Firebase data
 
-- `products`: active menu items, image URL, regular or promotional price, and promo dates.
+- `products`: active menu items, image URL, regular or promotional price, promo dates, and Whole Lechon kilo-to-price options.
 - `users`: name, address, phone, email, and the server-managed admin role.
-- `orders`: product snapshot, pickup slot, buyer details, payment status, and delivery status.
+- `orders`: product snapshot, optional Whole Lechon kilo selection, pickup slot, buyer details, payment status, and delivery status.
 
 After an admin marks an order delivered, Firestore rules prevent anyone from changing its delivery status or downpayment. Other permitted order updates, such as recording the final payment, remain available.
 

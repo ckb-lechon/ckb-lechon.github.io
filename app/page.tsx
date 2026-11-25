@@ -107,12 +107,14 @@ type Product = {
   stock?: number;
   lastStockOrderId?: string;
   price: number;
+  kiloPrices?: Record<string, number>;
   saleType: "regular" | "promo";
   promoFrom?: string;
   promoTo?: string;
   imageUrl: string;
   active: boolean;
 };
+type KiloPriceDraft = { kilo: number; price: number };
 
 type Profile = {
   firstName: string;
@@ -140,6 +142,7 @@ type CustomerOrder = {
   policyAccepted?: boolean;
   policyAcceptedAt?: number;
   quantity: number;
+  kilo?: string;
   stockDeducted?: boolean;
   total: number;
   downpayment?: number;
@@ -170,6 +173,21 @@ const orderCancellationWindowMs = 2 * 60 * 60 * 1000;
 const productCollection = () => collection(db!, "products");
 const orderCollection = () => collection(db!, "orders");
 const profilePath = (uid: string) => doc(db!, "users", uid);
+
+function kiloPriceOptions(product: Product | null | undefined) {
+  return Object.entries(product?.kiloPrices ?? {})
+    .map(([kilo, price]) => ({ kilo, price }))
+    .filter((option) => Number.isFinite(Number(option.kilo)) && Number(option.kilo) > 0
+      && Number.isFinite(option.price) && option.price >= 0)
+    .sort((left, right) => Number(left.kilo) - Number(right.kilo));
+}
+
+function productPriceLabel(product: Product) {
+  const options = kiloPriceOptions(product);
+  return product.orderName === "Whole Lechon" && options.length > 0
+    ? `From ${peso(options[0].price)}`
+    : peso(product.price);
+}
 
 function displayName(profile: Profile) {
   return [profile.firstName, profile.middleName, profile.lastName, profile.suffix].filter(Boolean).join(" ");
@@ -300,6 +318,8 @@ export default function HomePage() {
   const [foodInput, setFoodInput] = useState("");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [orderQuantity, setOrderQuantity] = useState("1");
+  const [orderKilo, setOrderKilo] = useState("");
+  const [kiloPriceRows, setKiloPriceRows] = useState<KiloPriceDraft[]>([]);
   const [pickupDate, setPickupDate] = useState("");
   const [pickupTime, setPickupTime] = useState("");
   const [dateFilter, setDateFilter] = useState("all");
@@ -330,6 +350,11 @@ export default function HomePage() {
     a.orderName.localeCompare(b.orderName, undefined, { sensitivity: "base" })
       || a.description.localeCompare(b.description, undefined, { sensitivity: "base" }),
   );
+  const orderKiloOptions = kiloPriceOptions(orderProduct);
+  const orderUnitPrice = orderProduct?.orderName === "Whole Lechon"
+    ? orderProduct.kiloPrices?.[orderKilo]
+    : orderProduct?.price;
+  const orderTotal = (orderUnitPrice ?? 0) * (Number(orderQuantity) || 0);
 
   useEffect(() => {
     const now = new Date();
@@ -651,6 +676,13 @@ export default function HomePage() {
       setNotice("Choose a pickup date within this promo period.");
       return;
     }
+    const selectedUnitPrice = orderProduct.orderName === "Whole Lechon"
+      ? orderProduct.kiloPrices?.[orderKilo]
+      : orderProduct.price;
+    if (typeof selectedUnitPrice !== "number" || !Number.isFinite(selectedUnitPrice)) {
+      setNotice("Choose a kilo option with a valid price.");
+      return;
+    }
     const allowDecimals = allowsDecimalQuantity(orderProduct.orderName);
     if (!isValidOrderQuantity(quantity, allowDecimals)) {
       setNotice(allowDecimals
@@ -671,7 +703,8 @@ export default function HomePage() {
       food: orderProduct.food ?? [],
       cookedFoodIndexes: [],
       quantity,
-      total: orderProduct.price * quantity,
+      ...(orderProduct.orderName === "Whole Lechon" ? { kilo: orderKilo } : {}),
+      total: selectedUnitPrice * quantity,
       downpayment: 0,
       pickupDate,
       pickupTime,
@@ -737,6 +770,30 @@ export default function HomePage() {
               total: productData.price * quantity,
             });
           });
+        } else if (orderProduct.orderName === "Whole Lechon") {
+          const productRef = doc(db, "products", orderProduct.id);
+          const orderRef = doc(orderCollection());
+          await runTransaction(db, async (transaction) => {
+            const productSnapshot = await transaction.get(productRef);
+            if (!productSnapshot.exists()) throw new Error("This menu item is no longer available.");
+            const productData = productSnapshot.data();
+            const currentOrderName = normalizeOrderName(productData.orderName ?? productData.name);
+            const currentKiloPrice = (productData.kiloPrices as Record<string, number> | undefined)?.[orderKilo];
+            if (!productData.active || currentOrderName !== "Whole Lechon" || typeof currentKiloPrice !== "number") {
+              throw new Error("This kilo option is no longer available. Refresh the menu and try again.");
+            }
+            if (currentKiloPrice !== selectedUnitPrice) {
+              throw new Error("The price for this kilo changed. Close the order and open it again to refresh the price.");
+            }
+            transaction.set(orderRef, {
+              ...order,
+              productName: currentOrderName,
+              imageUrl: productData.imageUrl,
+              description: productData.description,
+              food: Array.isArray(productData.food) ? productData.food : [],
+              total: currentKiloPrice * quantity,
+            });
+          });
         } else {
           await addDoc(orderCollection(), order);
         }
@@ -748,6 +805,7 @@ export default function HomePage() {
       setActiveTab("orders");
       setOrderProduct(null);
       setOrderQuantity("1");
+      setOrderKilo("");
       setPickupDate("");
       setPickupTime("");
       setNotice("Pickup booked. We'll have it ready for you!");
@@ -761,6 +819,20 @@ export default function HomePage() {
   async function saveProduct(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!productDraft) return;
+    if (productDraft.orderName === "Whole Lechon") {
+      if (kiloPriceRows.length === 0) {
+        setNotice("Add at least one kilo and price for Whole Lechon.");
+        return;
+      }
+      if (kiloPriceRows.some(({ kilo, price }) => !Number.isFinite(kilo) || kilo <= 0 || !Number.isFinite(price) || price < 0)) {
+        setNotice("Enter a valid kilo greater than zero and a non-negative price for each option.");
+        return;
+      }
+      if (new Set(kiloPriceRows.map(({ kilo }) => String(Number(kilo)))).size !== kiloPriceRows.length) {
+        setNotice("Each Whole Lechon kilo option must be unique.");
+        return;
+      }
+    }
     if (supportsStock(productDraft.orderName) && productDraft.stock !== undefined
       && (!Number.isFinite(productDraft.stock) || productDraft.stock < 0)) {
       setNotice("Stock must be a non-negative number.");
@@ -789,8 +861,17 @@ export default function HomePage() {
         }
       }
       const { id, stock, ...draftData } = productDraft;
+      delete draftData.kiloPrices;
+      const kiloPrices = Object.fromEntries(kiloPriceRows
+        .map(({ kilo, price }) => [String(Number(kilo)), price] as const)
+        .sort(([left], [right]) => Number(left) - Number(right)));
+      const startingPrice = productDraft.orderName === "Whole Lechon"
+        ? Math.min(...kiloPriceRows.map(({ price }) => price))
+        : productDraft.price;
       const data = {
         ...draftData,
+        price: startingPrice,
+        ...(productDraft.orderName === "Whole Lechon" ? { kiloPrices } : {}),
         food: foodInput.split(/[,\n]/).map((value) => value.trim()).filter(Boolean),
         ...(supportsStock(productDraft.orderName) && stock !== undefined ? { stock } : {}),
         name: productDraft.orderName,
@@ -803,9 +884,11 @@ export default function HomePage() {
         localStorage.setItem("ckb-demo-products", JSON.stringify(next));
       } else if (db && currentUser && admin) {
         if (editingProduct) {
-          const updates = supportsStock(productDraft.orderName) && stock !== undefined
-            ? data
-            : { ...data, stock: deleteField() };
+          const updates = {
+            ...data,
+            ...(supportsStock(productDraft.orderName) && stock !== undefined ? {} : { stock: deleteField() }),
+            ...(productDraft.orderName === "Whole Lechon" ? {} : { kiloPrices: deleteField() }),
+          };
           await updateDoc(doc(db, "products", id), updates);
         }
         else await addDoc(productCollection(), data);
@@ -1151,6 +1234,7 @@ export default function HomePage() {
       : { id: "", name: orderName, orderName, description: "", food: [], price: 0, saleType: "regular" as const, imageUrl: "", active: true };
     setEditingProduct(product ?? null);
     setProductDraft({ ...item });
+    setKiloPriceRows(kiloPriceOptions(item).map(({ kilo, price }) => ({ kilo: Number(kilo), price })));
     setFoodInput((product?.food ?? []).join(", "));
     setImageFile(null);
   }
@@ -1184,6 +1268,7 @@ export default function HomePage() {
     setOrderPolicyConfirmationOpen(false);
     setOrderProduct(product);
     setOrderQuantity("1");
+    setOrderKilo(kiloPriceOptions(product)[0]?.kilo ?? "");
     setPickupDate("");
     setPickupTime("");
   }
@@ -1262,7 +1347,7 @@ export default function HomePage() {
     return (
       <article className="admin-order" key={order.id}>
         <div className="admin-customer"><div><strong>{order.customer}</strong><span>{order.address}</span><a href={`tel:${order.phone}`}>{order.phone}</a></div></div>
-        <div className="admin-order-item"><div className="admin-order-photo" style={{ backgroundImage: `url("${order.imageUrl}")` }} /><div><button type="button" className="order-name-link" onClick={() => openOrderProductCard(order)}>{order.productName}</button><span>{order.quantity} {order.quantity === 1 ? "item" : "items"} · {peso(order.total)}</span></div></div>
+        <div className="admin-order-item"><div className="admin-order-photo" style={{ backgroundImage: `url("${order.imageUrl}")` }} /><div><button type="button" className="order-name-link" onClick={() => openOrderProductCard(order)}>{order.productName}</button><span>{order.kilo ? `${order.kilo} kg · ` : ""}{order.quantity} {order.quantity === 1 ? "item" : "items"} · {peso(order.total)}</span></div></div>
         <div className="admin-pickup"><span>PICKUP</span><strong>{formatDate(order.pickupDate)}</strong><span>{formatTime(order.pickupTime)}</span></div>
         <div className="admin-downpayment"><span>DOWNPAYMENT</span>{order.status === "delivered" ? <span className="downpayment-value">{peso(order.downpayment ?? 0)}</span> : <label className="downpayment-input">₱<input type="number" min="0" max={order.total} step="0.01" defaultValue={order.downpayment ?? 0} key={`${order.id}-${order.downpayment ?? 0}`} aria-label={`Downpayment for ${order.customer}`} onBlur={(event) => saveDownpayment(order, event.currentTarget)} /></label>}</div>
         <div className="admin-balance"><span>BALANCE</span><strong>{peso(orderBalance(order))}</strong>{order.paymentStatus === "paid" ? order.status === "delivered" ? <span className="payment-toggle paid">Fully paid</span> : <button className="payment-toggle paid" onClick={() => updateOrder(order.id, { paymentStatus: "due" })}>Fully paid</button> : orderBalance(order) === 0 ? <span className="payment-toggle paid">Fully paid</span> : <button className="payment-toggle" onClick={() => setOrderActionConfirmation({ order, action: "payment" })}>Fully Paid (Click Here)</button>}</div>
@@ -1363,19 +1448,21 @@ export default function HomePage() {
                   const isPromo = product.saleType === "promo" && (!product.promoFrom || today >= product.promoFrom) && (!product.promoTo || today <= product.promoTo);
                   const stockUnavailable = supportsStock(product.orderName)
                     && (typeof product.stock !== "number" || product.stock <= 0);
+                  const kiloPricingUnavailable = product.orderName === "Whole Lechon" && kiloPriceOptions(product).length === 0;
+                  const orderUnavailable = stockUnavailable || kiloPricingUnavailable;
                   return <article className={`product-card product-card-${index % 3}`} key={product.id}>
                     <div className="product-image" style={{ backgroundImage: `url("${product.imageUrl}")` }}>
                       <span className={isPromo ? "product-tag promo-tag" : "product-tag"}>{isPromo ? <><Flame size={12} /> SPECIAL</> : "HOUSE FAVORITE"}</span>
                     </div>
                     <div className="product-info">
-                      <div className="product-title-line"><h3>{product.orderName}</h3><span>{peso(product.price)}</span></div>
+                      <div className="product-title-line"><h3>{product.orderName}</h3><span>{productPriceLabel(product)}</span></div>
                       {supportsStock(product.orderName) && <strong className="product-stock">Stock: {typeof product.stock === "number" ? product.stock : "Not set"}</strong>}
                       {product.food && product.food.length > 0 && <div className="product-food-tags" aria-label="Food included">{product.food.map((food, foodIndex) => <span className="product-food-tag" key={`${food}-${foodIndex}`}>{food}</span>)}</div>}
                       <p>{product.description}</p>
                       {isPromo && product.promoTo && <small className="promo-date">Promo through {formatDate(product.promoTo)}</small>}
-                      {!admin && <button className="order-button" onClick={() => requestOrder(product)} disabled={stockUnavailable}>
-                        {stockUnavailable ? product.stock === 0 ? "Out of stock" : "Unavailable" : "Order this"}
-                        {!stockUnavailable && <ArrowRight size={15} />}
+                      {!admin && <button className="order-button" onClick={() => requestOrder(product)} disabled={orderUnavailable}>
+                        {orderUnavailable ? kiloPricingUnavailable ? "Pricing unavailable" : product.stock === 0 ? "Out of stock" : "Unavailable" : "Order this"}
+                        {!orderUnavailable && <ArrowRight size={15} />}
                       </button>}
                     </div>
                   </article>;
@@ -1396,7 +1483,7 @@ export default function HomePage() {
               <div className="order-thumb" style={{ backgroundImage: `url("${order.imageUrl}")` }} />
               <div className="customer-order-copy">
                 <div className="customer-order-top"><h2>{order.productName}</h2></div>
-                <p>{order.quantity} {order.quantity === 1 ? "item" : "items"} · {peso(order.total)}<span className="inline-payment-note"> · {order.status === "delivered" ? "Delivered" : orderBalance(order) === 0 ? "Fully paid" : <>Balance due <strong>{peso(orderBalance(order))}</strong></>}</span></p>
+                <p>{order.kilo ? `${order.kilo} kg · ` : ""}{order.quantity} {order.quantity === 1 ? "item" : "items"} · {peso(order.total)}<span className="inline-payment-note"> · {order.status === "delivered" ? "Delivered" : orderBalance(order) === 0 ? "Fully paid" : <>Balance due <strong>{peso(orderBalance(order))}</strong></>}</span></p>
                 <div className="pickup-line"><CalendarDays size={15} />{formatDate(order.pickupDate)} <span>·</span><Clock3 size={15} />{formatTime(order.pickupTime)}</div>
               </div>
               <div className="customer-order-actions">
@@ -1431,7 +1518,7 @@ export default function HomePage() {
           </section>
           <section className="admin-selected-date" aria-live="polite" aria-labelledby="selected-date-heading">
             <div className="selected-date-heading"><div><span className="eyebrow">SELECTED DATE</span><h2 id="selected-date-heading">{selectedPickupDate ? formatCalendarDate(selectedPickupDate, { month: "long", day: "numeric", year: "numeric" }) : "Choose a date"}</h2></div><span className="selected-date-count">{selectedDateOrders.length} {selectedDateOrders.length === 1 ? "order" : "orders"}</span></div>
-            {selectedDateOrders.length === 0 ? <div className="calendar-empty-state">No orders scheduled for this date.</div> : <div className="calendar-orders-table-wrap"><table className="calendar-orders-table pickup-calendar-orders-table"><thead><tr><th>Name</th><th>Order</th><th>Balance</th><th>Action</th></tr></thead><tbody>{selectedDateOrders.map((order) => <tr key={order.id}><td>{order.customer}</td><td>{order.quantity} {order.quantity === 1 ? "item" : "items"} · <button type="button" className="order-name-link" onClick={() => openOrderProductCard(order)}>{order.productName}</button></td><td><span className={orderBalance(order) === 0 ? "calendar-balance paid" : "calendar-balance"}>{orderBalance(order) === 0 ? "Paid" : peso(orderBalance(order))}</span></td><td><button type="button" className="reschedule-order-button" onClick={() => requestOrderReschedule(order)} disabled={order.status !== "pending"} title={order.status !== "pending" ? "Only pending orders can be rescheduled." : undefined}>Reschedule</button></td></tr>)}</tbody></table></div>}
+            {selectedDateOrders.length === 0 ? <div className="calendar-empty-state">No orders scheduled for this date.</div> : <div className="calendar-orders-table-wrap"><table className="calendar-orders-table pickup-calendar-orders-table"><thead><tr><th>Name</th><th>Order</th><th>Balance</th><th>Action</th></tr></thead><tbody>{selectedDateOrders.map((order) => <tr key={order.id}><td>{order.customer}</td><td>{order.quantity} {order.quantity === 1 ? "item" : "items"}{order.kilo ? ` · ${order.kilo} kg` : ""} · <button type="button" className="order-name-link" onClick={() => openOrderProductCard(order)}>{order.productName}</button></td><td><span className={orderBalance(order) === 0 ? "calendar-balance paid" : "calendar-balance"}>{orderBalance(order) === 0 ? "Paid" : peso(orderBalance(order))}</span></td><td><button type="button" className="reschedule-order-button" onClick={() => requestOrderReschedule(order)} disabled={order.status !== "pending"} title={order.status !== "pending" ? "Only pending orders can be rescheduled." : undefined}>Reschedule</button></td></tr>)}</tbody></table></div>}
           </section>
         </div>
         <div className="order-list-heading"><div><h2>The pickup list</h2><span>Orders for the selected pickup date.</span></div><select aria-label="Filter orders" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)}><option value="all">All orders</option><option value="pending">Not yet delivered</option><option value="due">Needs full payment</option></select></div>
@@ -1485,7 +1572,7 @@ export default function HomePage() {
               const orderProgress = checklistItemCount > 0 ? `${completedItemCount}/${checklistItemCount} done` : "No items listed";
               return <article className="checklist-order-card" key={order.id}>
                 <button type="button" className="checklist-order-toggle" aria-expanded={expanded} aria-controls={`checklist-food-${order.id}`} onClick={() => setExpandedChecklistOrders((current) => ({ ...current, [order.id]: !current[order.id] }))}>
-                  <span className="checklist-order-main"><strong>{order.productName} <span>× {order.quantity}</span></strong><small>{order.customer} · {formatTime(order.pickupTime)}</small></span>
+                  <span className="checklist-order-main"><strong>{order.productName} <span>× {order.quantity}{order.kilo ? ` · ${order.kilo} kg` : ""}</span></strong><small>{order.customer} · {formatTime(order.pickupTime)}</small></span>
                   <span className="checklist-order-progress">{orderProgress}</span><ChevronDown size={18} className={expanded ? "expanded" : ""} />
                 </button>
                 {expanded && <div className="checklist-food-list" id={`checklist-food-${order.id}`}>
@@ -1611,7 +1698,7 @@ export default function HomePage() {
             <span className={selectedOrderProduct.saleType === "promo" ? "product-tag promo-tag" : "product-tag"}>{selectedOrderProduct.saleType === "promo" ? <><Flame size={12} /> SPECIAL</> : "HOUSE FAVORITE"}</span>
           </div>
           <div className="menu-item-preview-copy">
-            <div className="menu-item-preview-title"><h2 id="menu-item-preview-title">{selectedOrderProduct.orderName}</h2><strong>{peso(selectedOrderProduct.price)}</strong></div>
+            <div className="menu-item-preview-title"><h2 id="menu-item-preview-title">{selectedOrderProduct.orderName}</h2><strong>{productPriceLabel(selectedOrderProduct)}</strong></div>
             {supportsStock(selectedOrderProduct.orderName) && <strong className="product-stock">Stock: {typeof selectedOrderProduct.stock === "number" ? selectedOrderProduct.stock : "Not set"}</strong>}
             {selectedOrderProduct.food && selectedOrderProduct.food.length > 0 && <div className="product-food-tags" aria-label="Food included">{selectedOrderProduct.food.map((food, foodIndex) => <span className="product-food-tag" key={`${food}-${foodIndex}`}>{food}</span>)}</div>}
             <p id="menu-item-preview-description">{selectedOrderProduct.description || "Menu details are no longer available."}</p>
@@ -1619,11 +1706,63 @@ export default function HomePage() {
           </div>
         </section>
       </div>}
-      {orderProduct && <div className="overlay order-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) setOrderProduct(null); }}><section className="dialog order-dialog" role="dialog" aria-modal="true" aria-labelledby="pickup-title"><button className="dialog-close" onClick={() => setOrderProduct(null)} aria-label="Close"><X size={19} /></button><div className="order-dialog-photo" style={{ backgroundImage: `url("${orderProduct.imageUrl}")` }} /><div className="order-mobile-heading" aria-hidden="true"><div>MAKE IT A GATHERING</div><h2>Save your spot.</h2></div><div className="dialog-kicker">PLACE AN ORDER</div><h2 id="pickup-title">{orderProduct.name}</h2><p className="order-description">{orderProduct.description}</p><p className="order-summary"><span>Order total</span><strong>{peso(orderProduct.price * (Number(orderQuantity) || 0))}</strong></p><p className="order-mobile-summary"><strong>{orderProduct.name}</strong><span>{peso(orderProduct.price * (Number(orderQuantity) || 0))}</span></p><form className="auth-form" onSubmit={requestOrderPolicyConfirmation}><label>Quantity{allowsDecimalQuantity(orderProduct.orderName) && " (decimal amounts allowed)"}<input type="number" min={allowsDecimalQuantity(orderProduct.orderName) ? 0.01 : 1} max={allowsDecimalQuantity(orderProduct.orderName) && typeof orderProduct.stock === "number" ? Math.min(99, orderProduct.stock) : 99} step={allowsDecimalQuantity(orderProduct.orderName) ? "any" : 1} required value={orderQuantity} onChange={(event) => setOrderQuantity(event.target.value)} /></label><div className="pickup-fields"><label>Pickup date<input required type="date" min={orderProduct.saleType === "promo" && orderProduct.promoFrom && orderProduct.promoFrom > today ? orderProduct.promoFrom : today} max={orderProduct.saleType === "promo" ? orderProduct.promoTo : undefined} value={pickupDate} onChange={(event) => setPickupDate(event.target.value)} /></label><label>Pickup time<input required type="time" value={pickupTime} onChange={(event) => setPickupTime(event.target.value)} /></label></div>{orderProduct.saleType === "promo" && <div className="pickup-note">Promo pickup dates: {formatDate(orderProduct.promoFrom ?? "")} – {formatDate(orderProduct.promoTo ?? "")}.</div>}{!signedIn && <div className="pickup-note">Sign in or try a preview to confirm your pickup.</div>}<button className="submit-button" disabled={busy || !isPickupDateEligible(orderProduct, pickupDate)}>{busy ? "Saving your pickup..." : "Confirm pickup"}<ArrowRight size={16} /></button></form></section></div>}
+      {orderProduct && (
+        <div className="overlay order-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) setOrderProduct(null); }}>
+          <section className="dialog order-dialog" role="dialog" aria-modal="true" aria-labelledby="pickup-title">
+            <button className="dialog-close" onClick={() => setOrderProduct(null)} aria-label="Close"><X size={19} /></button>
+            <div className="order-dialog-photo" style={{ backgroundImage: `url("${orderProduct.imageUrl}")` }} />
+            <div className="order-mobile-heading" aria-hidden="true"><div>MAKE IT A GATHERING</div><h2>Save your spot.</h2></div>
+            <div className="dialog-kicker">PLACE AN ORDER</div>
+            <h2 id="pickup-title">{orderProduct.name}</h2>
+            <p className="order-description">{orderProduct.description}</p>
+            <p className="order-summary"><span>Order total</span><strong>{peso(orderTotal)}</strong></p>
+            <p className="order-mobile-summary"><strong>{orderProduct.name}</strong><span>{peso(orderTotal)}</span></p>
+            <form className="auth-form" onSubmit={requestOrderPolicyConfirmation}>
+              {orderProduct.orderName === "Whole Lechon" && <label>Kilo<select required value={orderKilo} onChange={(event) => setOrderKilo(event.target.value)}><option value="">Choose kilo</option>{orderKiloOptions.map(({ kilo, price }) => <option key={kilo} value={kilo}>{kilo} kg · {peso(price)}</option>)}</select></label>}
+              <label>Quantity{allowsDecimalQuantity(orderProduct.orderName) && " (decimal amounts allowed)"}<input type="number" min={allowsDecimalQuantity(orderProduct.orderName) ? 0.01 : 1} max={allowsDecimalQuantity(orderProduct.orderName) && typeof orderProduct.stock === "number" ? Math.min(99, orderProduct.stock) : 99} step={allowsDecimalQuantity(orderProduct.orderName) ? "any" : 1} required value={orderQuantity} onChange={(event) => setOrderQuantity(event.target.value)} /></label>
+              <div className="pickup-fields"><label>Pickup date<input required type="date" min={orderProduct.saleType === "promo" && orderProduct.promoFrom && orderProduct.promoFrom > today ? orderProduct.promoFrom : today} max={orderProduct.saleType === "promo" ? orderProduct.promoTo : undefined} value={pickupDate} onChange={(event) => setPickupDate(event.target.value)} /></label><label>Pickup time<input required type="time" value={pickupTime} onChange={(event) => setPickupTime(event.target.value)} /></label></div>
+              {orderProduct.saleType === "promo" && <div className="pickup-note">Promo pickup dates: {formatDate(orderProduct.promoFrom ?? "")} – {formatDate(orderProduct.promoTo ?? "")}.</div>}
+              {!signedIn && <div className="pickup-note">Sign in or try a preview to confirm your pickup.</div>}
+              <button className="submit-button" disabled={busy || !isPickupDateEligible(orderProduct, pickupDate) || (orderProduct.orderName === "Whole Lechon" && !orderKiloOptions.some((option) => option.kilo === orderKilo))}>{busy ? "Saving your pickup..." : "Confirm pickup"}<ArrowRight size={16} /></button>
+            </form>
+          </section>
+        </div>
+      )}
 
       {orderPolicyConfirmationOpen && orderProduct && <div className="overlay confirmation-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) setOrderPolicyConfirmationOpen(false); }} onKeyDown={(event) => { if (event.key === "Escape" && !busy) setOrderPolicyConfirmationOpen(false); }}><section className="dialog confirmation-dialog" role="alertdialog" aria-modal="true" aria-labelledby="order-policy-title" aria-describedby="order-policy-description"><span className="confirmation-icon"><CircleHelp size={21} /></span><div className="dialog-kicker">ORDERING POLICIES</div><h2 id="order-policy-title">Before you place your order.</h2><p id="order-policy-description">Please prepare the downpayment for your order. Downpayments are non-refundable once paid. You may reschedule, subject to stock availability. By selecting “I agree and place order,” you confirm that you have read and agree to these ordering policies.</p><div className="confirmation-actions"><button className="confirmation-keep" autoFocus onClick={() => setOrderPolicyConfirmationOpen(false)} disabled={busy}>Cancel</button><button className="confirmation-accept" onClick={confirmOrderPolicy} disabled={busy}>{busy ? "Placing order…" : "I agree and place order"}</button></div></section></div>}
 
-      {productDraft && <div className="overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) { setProductDraft(null); setEditingProduct(null); } }}><section className="dialog product-dialog" role="dialog" aria-modal="true" aria-labelledby="product-form-title"><button className="dialog-close" onClick={() => { setProductDraft(null); setEditingProduct(null); }} aria-label="Close"><X size={19} /></button><div className="dialog-kicker">THE CKB MENU</div><h2 id="product-form-title">{editingProduct ? "Edit menu item." : "Add something good."}</h2><form className="auth-form" onSubmit={saveProduct}><label>Order name<select required value={productDraft.orderName} onChange={(event) => setProductDraft({ ...productDraft, orderName: event.target.value as OrderName, name: event.target.value })}>{orderNames.map((orderName) => <option key={orderName} value={orderName}>{orderName}</option>)}</select></label><label>Description<textarea required rows={3} value={productDraft.description} onChange={(event) => setProductDraft({ ...productDraft, description: event.target.value })} /></label><label>Food<textarea rows={2} placeholder="Separate multiple foods with commas" value={foodInput} onChange={(event) => setFoodInput(event.target.value)} /></label>{supportsStock(productDraft.orderName) && <label>Stock<input type="number" min="0" step="any" placeholder="Available stock" value={productDraft.stock ?? ""} onChange={(event) => setProductDraft({ ...productDraft, stock: event.target.value === "" ? undefined : Number(event.target.value) })} /></label>}<label>Price (₱)<input type="number" required min="0" step="0.01" value={productDraft.price || ""} onChange={(event) => setProductDraft({ ...productDraft, price: Number(event.target.value) })} /></label><label>Sale type<select value={productDraft.saleType} onChange={(event) => setProductDraft({ ...productDraft, saleType: event.target.value as Product["saleType"] })}><option value="regular">Regular</option><option value="promo">Promo</option></select></label>{productDraft.saleType === "promo" && <div className="name-fields"><label>Date From<input required type="date" max={productDraft.promoTo || undefined} value={productDraft.promoFrom || ""} onChange={(event) => setProductDraft({ ...productDraft, promoFrom: event.target.value })} /></label><label>Date To<input required type="date" min={productDraft.promoFrom || undefined} value={productDraft.promoTo || ""} onChange={(event) => setProductDraft({ ...productDraft, promoTo: event.target.value })} /></label></div>}<label>Upload image<input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => setImageFile(event.target.files?.[0] ?? null)} /></label>{!uploadThingConfigured && !demoMode && <div className="pickup-note">Configure the UploadThing Worker URL to enable image uploads.</div>}<button className="submit-button" disabled={busy}>{busy ? uploadingImage ? "Uploading image..." : "Saving..." : editingProduct ? "Save changes" : "Add to menu"}<ArrowRight size={16} /></button></form></section></div>}
+      {productDraft && (
+        <div className="overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) { setProductDraft(null); setEditingProduct(null); } }}>
+          <section className="dialog product-dialog" role="dialog" aria-modal="true" aria-labelledby="product-form-title">
+            <button className="dialog-close" onClick={() => { setProductDraft(null); setEditingProduct(null); }} aria-label="Close"><X size={19} /></button>
+            <div className="dialog-kicker">THE CKB MENU</div>
+            <h2 id="product-form-title">{editingProduct ? "Edit menu item." : "Add something good."}</h2>
+            <form className="auth-form" onSubmit={saveProduct}>
+              <label>Order name<select required value={productDraft.orderName} onChange={(event) => { const orderName = event.target.value as OrderName; setProductDraft({ ...productDraft, orderName, name: orderName }); }}>{orderNames.map((orderName) => <option key={orderName} value={orderName}>{orderName}</option>)}</select></label>
+              <label>Description<textarea required rows={3} value={productDraft.description} onChange={(event) => setProductDraft({ ...productDraft, description: event.target.value })} /></label>
+              <label>Food<textarea rows={2} placeholder="Separate multiple foods with commas" value={foodInput} onChange={(event) => setFoodInput(event.target.value)} /></label>
+              {supportsStock(productDraft.orderName) && <label>Stock<input type="number" min="0" step="any" placeholder="Available stock" value={productDraft.stock ?? ""} onChange={(event) => setProductDraft({ ...productDraft, stock: event.target.value === "" ? undefined : Number(event.target.value) })} /></label>}
+              {productDraft.orderName === "Whole Lechon" ? (
+                <div className="kilo-pricing-editor">
+                  <strong>Kilo and price options</strong>
+                  {kiloPriceRows.map((row, index) => <div className="kilo-price-row" key={`kilo-price-${index}`}>
+                    <label>Kilo<input type="number" min="0.01" step="any" required value={row.kilo || ""} onChange={(event) => { const kilo = event.target.value === "" ? 0 : Number(event.target.value); setKiloPriceRows((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, kilo } : item)); }} /></label>
+                    <label>Price (₱)<input type="number" min="0" step="0.01" required value={row.price} onChange={(event) => { const price = event.target.value === "" ? 0 : Number(event.target.value); setKiloPriceRows((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, price } : item)); }} /></label>
+                    <button type="button" className="remove-kilo-price" aria-label={`Remove kilo option ${index + 1}`} onClick={() => setKiloPriceRows((current) => current.filter((_, itemIndex) => itemIndex !== index))}><X size={16} /></button>
+                  </div>)}
+                  <button type="button" className="add-kilo-price" onClick={() => setKiloPriceRows((current) => [...current, { kilo: 0, price: 0 }])}><Plus size={15} /> Add kilo price</button>
+                  <p className="pickup-note">Add one or more kilo and price options. Customers choose a kilo before ordering.</p>
+                </div>
+              ) : <label>Price (₱)<input type="number" required min="0" step="0.01" value={productDraft.price || ""} onChange={(event) => setProductDraft({ ...productDraft, price: Number(event.target.value) })} /></label>}
+              <label>Sale type<select value={productDraft.saleType} onChange={(event) => setProductDraft({ ...productDraft, saleType: event.target.value as Product["saleType"] })}><option value="regular">Regular</option><option value="promo">Promo</option></select></label>
+              {productDraft.saleType === "promo" && <div className="name-fields"><label>Date From<input required type="date" max={productDraft.promoTo || undefined} value={productDraft.promoFrom || ""} onChange={(event) => setProductDraft({ ...productDraft, promoFrom: event.target.value })} /></label><label>Date To<input required type="date" min={productDraft.promoFrom || undefined} value={productDraft.promoTo || ""} onChange={(event) => setProductDraft({ ...productDraft, promoTo: event.target.value })} /></label></div>}
+              <label>Upload image<input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => setImageFile(event.target.files?.[0] ?? null)} /></label>
+              {!uploadThingConfigured && !demoMode && <div className="pickup-note">Configure the UploadThing Worker URL to enable image uploads.</div>}
+              <button className="submit-button" disabled={busy}>{busy ? uploadingImage ? "Uploading image..." : "Saving..." : editingProduct ? "Save changes" : "Add to menu"}<ArrowRight size={16} /></button>
+            </form>
+          </section>
+        </div>
+      )}
     </main>
   );
 }

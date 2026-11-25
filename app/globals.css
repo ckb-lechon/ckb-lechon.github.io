@@ -333,6 +333,12 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .pickup-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .pickup-fields label, .pickup-fields input { min-width: 0; }
 .pickup-fields input { padding-right: 8px; padding-left: 8px; }
+.kilo-pricing-editor { display: grid; gap: 8px; }
+.kilo-pricing-editor > strong { color: #76594e; font-size: 14px; }
+.kilo-price-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 39px; align-items: end; gap: 8px; }
+.remove-kilo-price { width: 39px; height: 41px; display: grid; place-items: center; border: 1px solid #f0d4cf; border-radius: 9px; color: #a34535; background: #fff4ef; }
+.add-kilo-price { width: fit-content; min-height: 35px; padding: 0 10px; display: inline-flex; align-items: center; gap: 6px; border: 1px solid #ead8cf; border-radius: 9px; color: #8b3925; background: #fff7f1; font-size: 14px; font-weight: 700; }
+.add-kilo-price:hover, .remove-kilo-price:hover { background: #ffebe2; }
 .password-form-field { min-width: 0; display: flex; flex-direction: column; gap: 5px; }
 .password-field { position: relative; display: flex; align-items: center; }
 .password-field input { padding-right: 44px; }
