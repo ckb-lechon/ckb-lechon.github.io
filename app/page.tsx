@@ -155,9 +155,7 @@ type CustomerOrder = {
   productName: string;
   imageUrl: string;
   description?: string;
-  descriptionDone?: boolean;
   food?: string[];
-  cookedFoodIndexes?: number[];
   policyAccepted?: boolean;
   policyAcceptedAt?: number;
   quantity: number;
@@ -309,15 +307,15 @@ export default function HomePage() {
   const [authMode, setAuthMode] = useState<AuthMode>("login");
   const [postAuthTab, setPostAuthTab] = useState<Tab | null>(null);
   const [orderProduct, setOrderProduct] = useState<Product | null>(null);
+  const [walkInOrderMode, setWalkInOrderMode] = useState(false);
+  const [walkInCustomer, setWalkInCustomer] = useState({ name: "", address: "", phone: "" });
   const [orderPolicyConfirmationOpen, setOrderPolicyConfirmationOpen] = useState(false);
   const [rescheduleDraft, setRescheduleDraft] = useState<{ order: CustomerOrder; pickupDate: string; pickupTime: string } | null>(null);
   const [selectedOrderProduct, setSelectedOrderProduct] = useState<Product | null>(null);
   const [cancelOrderConfirmation, setCancelOrderConfirmation] = useState<CustomerOrder | null>(null);
   const [orderActionConfirmation, setOrderActionConfirmation] = useState<{ order: CustomerOrder; action: "payment" | "delivered" } | null>(null);
-  const [foodChecklistConfirmation, setFoodChecklistConfirmation] = useState<{ order: CustomerOrder; itemType: "description" | "food"; foodIndex: number; foodName: string; nextChecked: boolean } | null>(null);
   const [productRemovalConfirmation, setProductRemovalConfirmation] = useState<Product | null>(null);
   const [confirmingOrderActionId, setConfirmingOrderActionId] = useState<string | null>(null);
-  const [updatingFoodChecklistId, setUpdatingFoodChecklistId] = useState<string | null>(null);
   const [reschedulingOrderId, setReschedulingOrderId] = useState<string | null>(null);
   const [logoutConfirmationOpen, setLogoutConfirmationOpen] = useState(false);
   const [downpaymentQrOpen, setDownpaymentQrOpen] = useState(false);
@@ -352,7 +350,6 @@ export default function HomePage() {
   const [changingRoleUid, setChangingRoleUid] = useState<string | null>(null);
   const [calendarMonth, setCalendarMonth] = useState("");
   const [selectedPickupDate, setSelectedPickupDate] = useState("");
-  const [expandedChecklistOrders, setExpandedChecklistOrders] = useState<Record<string, boolean>>({});
   const [activeMenuCategory, setActiveMenuCategory] = useState<OrderName | "">("");
   const canManage = Boolean(admin && (currentUser || demoMode));
   const canManageUsers = Boolean(
@@ -370,6 +367,7 @@ export default function HomePage() {
       || a.description.localeCompare(b.description, undefined, { sensitivity: "base" }),
   );
   const orderKiloOptions = kiloPriceOptions(orderProduct);
+  const walkInProducts = menuProducts.filter((product) => product.active);
   const orderUnitPrice = orderProduct?.orderName === "Whole Lechon"
     ? orderProduct.kiloPrices?.[orderKilo]
     : orderProduct?.price;
@@ -500,11 +498,7 @@ export default function HomePage() {
             return {
               id: item.id,
               ...data,
-              descriptionDone: data.descriptionDone === true,
               food: Array.isArray(data.food) ? data.food.filter((value): value is string => typeof value === "string") : undefined,
-              cookedFoodIndexes: Array.isArray(data.cookedFoodIndexes)
-                ? data.cookedFoodIndexes.filter((value): value is number => Number.isInteger(value) && value >= 0)
-                : [],
             } as CustomerOrder;
           })
           .filter((item) => admin || item.userId === currentUser.uid)
@@ -685,7 +679,12 @@ export default function HomePage() {
 
   async function placeOrder() {
     if (!orderProduct || !pickupDate || !pickupTime) return;
+    const isAdminWalkIn = canManage && walkInOrderMode;
     const quantity = Number(orderQuantity);
+    if (isAdminWalkIn && (!walkInCustomer.name.trim() || !walkInCustomer.address.trim() || !walkInCustomer.phone.trim())) {
+      setNotice("Enter the customer's name, address, and contact number.");
+      return;
+    }
     if (isPromoExpired(orderProduct, manilaDateKey(new Date()))) {
       setOrderProduct(null);
       setNotice("This promo has ended and is no longer available.");
@@ -710,17 +709,15 @@ export default function HomePage() {
       return;
     }
     const order: Omit<CustomerOrder, "id"> = {
-      userId: currentUser?.uid ?? "demo-customer",
-      customer: displayName(profile) || "Alex Customer",
-      address: profile.address || "San Juan, Metro Manila",
-      phone: profile.phone || "+639171234567",
+      userId: currentUser?.uid ?? (isAdminWalkIn ? "demo-admin" : "demo-customer"),
+      customer: isAdminWalkIn ? walkInCustomer.name.trim() : displayName(profile) || "Alex Customer",
+      address: isAdminWalkIn ? walkInCustomer.address.trim() : profile.address || "San Juan, Metro Manila",
+      phone: isAdminWalkIn ? walkInCustomer.phone.trim() : profile.phone || "+639171234567",
       productId: orderProduct.id,
       productName: orderProduct.name,
       imageUrl: orderProduct.imageUrl,
       description: orderProduct.description,
-      descriptionDone: false,
       food: orderProduct.food ?? [],
-      cookedFoodIndexes: [],
       quantity,
       ...(orderProduct.orderName === "Whole Lechon" ? { kilo: orderKilo } : {}),
       total: selectedUnitPrice * quantity,
@@ -821,13 +818,19 @@ export default function HomePage() {
         showSignIn("login");
         return;
       }
-      setActiveTab("orders");
+      setActiveTab(isAdminWalkIn ? "admin" : "orders");
+      if (isAdminWalkIn) {
+        setSelectedPickupDate(pickupDate);
+        setCalendarMonth(pickupDate.slice(0, 7));
+      }
       setOrderProduct(null);
+      setWalkInOrderMode(false);
+      setWalkInCustomer({ name: "", address: "", phone: "" });
       setOrderQuantity("1");
       setOrderKilo("");
       setPickupDate("");
       setPickupTime("");
-      setNotice("Pickup booked. We'll have it ready for you!");
+      setNotice(isAdminWalkIn ? "Walk-in order added to the pickup list." : "Pickup booked. We'll have it ready for you!");
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "We couldn't place that order. Please try again.");
     } finally {
@@ -1013,43 +1016,6 @@ export default function HomePage() {
       setNotice(error instanceof Error ? error.message : "Unable to update this order.");
     } finally {
       setConfirmingOrderActionId(null);
-    }
-  }
-
-  async function confirmFoodChecklist() {
-    if (!foodChecklistConfirmation || updatingFoodChecklistId) return;
-    const { order: requestedOrder, itemType, foodIndex, foodName, nextChecked } = foodChecklistConfirmation;
-    const order = orders.find((item) => item.id === requestedOrder.id);
-    if (!order || order.status === "cancelled") {
-      setFoodChecklistConfirmation(null);
-      setNotice("This order is no longer available for the checklist.");
-      return;
-    }
-    const food = foodForOrder(order);
-    const description = descriptionForOrder(order);
-    if ((itemType === "description" ? description : food[foodIndex]) !== foodName) {
-      setFoodChecklistConfirmation(null);
-      setNotice("This checklist item has changed. Refresh the checklist and try again.");
-      return;
-    }
-
-    const checkedIndexes = new Set(order.cookedFoodIndexes ?? []);
-    if (itemType === "food") {
-      if (nextChecked) checkedIndexes.add(foodIndex);
-      else checkedIndexes.delete(foodIndex);
-    }
-
-    setUpdatingFoodChecklistId(order.id);
-    try {
-      await updateOrder(order.id, itemType === "description"
-        ? { description, descriptionDone: nextChecked }
-        : { food, cookedFoodIndexes: [...checkedIndexes].sort((left, right) => left - right) });
-      setFoodChecklistConfirmation(null);
-      setNotice(`${foodName} checklist updated.`);
-    } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Unable to update the checklist.");
-    } finally {
-      setUpdatingFoodChecklistId(null);
     }
   }
 
@@ -1284,12 +1250,50 @@ export default function HomePage() {
       showSignIn("login");
       return;
     }
+    setWalkInOrderMode(canManage);
+    if (canManage) setWalkInCustomer({ name: "", address: "", phone: "" });
     setOrderPolicyConfirmationOpen(false);
     setOrderProduct(product);
     setOrderQuantity("1");
     setOrderKilo(kiloPriceOptions(product)[0]?.kilo ?? "");
     setPickupDate("");
     setPickupTime("");
+  }
+
+  function startWalkInOrder() {
+    if (!canManage) return;
+    setWalkInOrderMode(true);
+    setWalkInCustomer({ name: "", address: "", phone: "" });
+    setOrderProduct(null);
+    setOrderQuantity("1");
+    setOrderKilo("");
+    setPickupDate("");
+    setPickupTime("");
+  }
+
+  function closeWalkInOrder() {
+    if (busy) return;
+    setWalkInOrderMode(false);
+    setOrderProduct(null);
+  }
+
+  function selectWalkInProduct(productId: string) {
+    const product = walkInProducts.find((item) => item.id === productId) ?? null;
+    setOrderProduct(product);
+    setOrderQuantity("1");
+    setOrderKilo(kiloPriceOptions(product)[0]?.kilo ?? "");
+    setPickupDate("");
+    setPickupTime("");
+  }
+
+  function submitWalkInOrder(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!canManage || !walkInOrderMode || !orderProduct) return;
+    if (!walkInCustomer.name.trim() || !walkInCustomer.address.trim() || !walkInCustomer.phone.trim()) {
+      setNotice("Enter the customer's name, address, and contact number.");
+      return;
+    }
+    void placeOrder();
   }
 
   function requestOrders() {
@@ -1344,9 +1348,19 @@ export default function HomePage() {
     return order.food ?? products.find((product) => product.id === order.productId)?.food ?? [];
   }
 
-  function descriptionForOrder(order: CustomerOrder) {
-    return order.description ?? products.find((product) => product.id === order.productId)?.description ?? "";
-  }
+  const selectedChecklistSummary = selectedChecklistOrders.reduce((summary, order) => {
+    const orderItemLabels = foodForOrder(order).map((foodName) => foodName.trim()).filter(Boolean);
+    const uniqueOrderItems = new Map(orderItemLabels.map((label) => [label.toLocaleLowerCase(), label]));
+    for (const [key, label] of uniqueOrderItems) {
+      const existing = summary.get(key);
+      if (existing) existing.quantity += order.quantity;
+      else summary.set(key, { label, quantity: order.quantity });
+    }
+    return summary;
+  }, new Map<string, { label: string; quantity: number }>());
+  const selectedChecklistItems = [...selectedChecklistSummary.values()].sort((left, right) =>
+    left.label.localeCompare(right.label),
+  );
 
   function changeCalendarMonth(offset: number) {
     if (!calendarMonthDate) return;
@@ -1371,7 +1385,7 @@ export default function HomePage() {
         <div className="admin-downpayment"><span>DOWNPAYMENT</span>{order.status === "delivered" ? <span className="downpayment-value">{peso(order.downpayment ?? 0)}</span> : <label className="downpayment-input">₱<input type="number" min="0" max={order.total} step="0.01" defaultValue={order.downpayment ?? 0} key={`${order.id}-${order.downpayment ?? 0}`} aria-label={`Downpayment for ${order.customer}`} onBlur={(event) => saveDownpayment(order, event.currentTarget)} /></label>}</div>
         <div className="admin-balance"><span>BALANCE</span><strong>{peso(orderBalance(order))}</strong>{order.paymentStatus === "paid" ? order.status === "delivered" ? <span className="payment-toggle paid">Fully paid</span> : <button className="payment-toggle paid" onClick={() => updateOrder(order.id, { paymentStatus: "due" })}>Fully paid</button> : orderBalance(order) === 0 ? <span className="payment-toggle paid">Fully paid</span> : <button className="payment-toggle" onClick={() => setOrderActionConfirmation({ order, action: "payment" })}>Fully Paid (Click Here)</button>}</div>
         <div className="admin-order-actions">
-          {currentUser && <button className="order-message-button" aria-label={`Message ${order.customer}${unreadCount ? `, ${unreadCount} new messages` : ""}`} onClick={() => setConversationOrder(order)}>Message{unreadCount > 0 && <span className="unread-message-badge" aria-hidden="true">{unreadCount > 99 ? "99+" : unreadCount}</span>}</button>}
+          {canManage && <button className="order-message-button" aria-label={`Message ${order.customer}${unreadCount ? `, ${unreadCount} new messages` : ""}`} onClick={() => currentUser ? setConversationOrder(order) : setNotice("Sign in with an admin account to open order messages.")}>Message{unreadCount > 0 && <span className="unread-message-badge" aria-hidden="true">{unreadCount > 99 ? "99+" : unreadCount}</span>}</button>}
           {order.status === "cancelled" ? <button className="delivered-toggle cancelled" disabled>Cancelled</button> : order.status === "delivered" ? <button className="delivered-toggle delivered" disabled><Check size={15} /> Delivered</button> : <button className="delivered-toggle" onClick={() => setOrderActionConfirmation({ order, action: "delivered" })} disabled={orderBalance(order) > 0} title={orderBalance(order) > 0 ? "Collect the remaining balance before marking delivered." : undefined}>Mark delivered</button>}
         </div>
       </article>
@@ -1540,7 +1554,7 @@ export default function HomePage() {
             {selectedDateOrders.length === 0 ? <div className="calendar-empty-state">No orders scheduled for this date.</div> : <div className="calendar-orders-table-wrap"><table className="calendar-orders-table pickup-calendar-orders-table"><thead><tr><th>Name</th><th>Order</th><th>Balance</th><th>Action</th></tr></thead><tbody>{selectedDateOrders.map((order) => <tr key={order.id}><td>{order.customer}</td><td>{order.quantity} {order.quantity === 1 ? "item" : "items"}{order.kilo ? ` · ${order.kilo} kg` : ""} · <button type="button" className="order-name-link" onClick={() => openOrderProductCard(order)}>{order.productName}</button></td><td><span className={orderBalance(order) === 0 ? "calendar-balance paid" : "calendar-balance"}>{orderBalance(order) === 0 ? "Paid" : peso(orderBalance(order))}</span></td><td><button type="button" className="reschedule-order-button" onClick={() => requestOrderReschedule(order)} disabled={order.status !== "pending"} title={order.status !== "pending" ? "Only pending orders can be rescheduled." : undefined}>Reschedule</button></td></tr>)}</tbody></table></div>}
           </section>
         </div>
-        <div className="order-list-heading"><div><h2>The pickup list</h2><span>Orders for the selected pickup date.</span></div><select aria-label="Filter orders" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)}><option value="all">All orders</option><option value="pending">Not yet delivered</option><option value="due">Needs full payment</option></select></div>
+        <div className="order-list-heading"><div><h2>The pickup list</h2><span>Orders for the selected pickup date.</span></div><div className="admin-order-list-tools"><button type="button" className="walk-in-order-button" onClick={startWalkInOrder} title="Create a walk-in order"><Plus size={16} /> Order</button><select aria-label="Filter orders" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)}><option value="all">All orders</option><option value="pending">Not yet delivered</option><option value="due">Needs full payment</option></select></div></div>
         {filteredOrders.length === 0 ? <div className="admin-empty">No pickup orders match this filter.</div> : <div className="admin-order-list">{filteredOrders.map(renderAdminOrder)}</div>}
         <div className="order-list-heading delivered-orders-heading">
           <div><h2>Delivered Orders</h2><span>Orders handed over to customers.</span></div>
@@ -1560,7 +1574,7 @@ export default function HomePage() {
       </section>}
 
       {activeTab === "checklist" && canManage && <section className="dashboard-section admin-section">
-        <div className="dashboard-heading"><div><span className="eyebrow"><span className="eyebrow-line" /> CKB LECHON HOUSE</span><h1>Order Checklist<span className="heading-period">.</span></h1><p>Mark food items done for each pickup.</p></div></div>
+        <div className="dashboard-heading"><div><span className="eyebrow"><span className="eyebrow-line" /> CKB LECHON HOUSE</span><h1>Order Checklist<span className="heading-period">.</span></h1><p>Count listed food items by pickup date.</p></div></div>
         <div className="admin-calendar-layout">
           <section className="admin-calendar-card" aria-labelledby="checklist-calendar-heading">
             <div className="admin-calendar-toolbar">
@@ -1581,36 +1595,7 @@ export default function HomePage() {
           </section>
           <section className="admin-selected-date checklist-selected-date" aria-live="polite" aria-labelledby="checklist-selected-date-heading">
             <div className="selected-date-heading"><div><span className="eyebrow">ORDERS FOR THIS DATE</span><h2 id="checklist-selected-date-heading">{selectedPickupDate ? formatCalendarDate(selectedPickupDate, { month: "long", day: "numeric", year: "numeric" }) : "Choose a date"}</h2></div><span className="selected-date-count">{selectedChecklistOrders.length} {selectedChecklistOrders.length === 1 ? "order" : "orders"}</span></div>
-            {selectedChecklistOrders.length === 0 ? <div className="calendar-empty-state">No orders for this date.</div> : <div className="checklist-order-list">{selectedChecklistOrders.map((order) => {
-              const food = foodForOrder(order);
-              const description = descriptionForOrder(order);
-              const expanded = Boolean(expandedChecklistOrders[order.id]);
-              const checkedIndexes = new Set(order.cookedFoodIndexes ?? []);
-              const checklistItemCount = food.length + (description ? 1 : 0);
-              const completedItemCount = food.filter((_, index) => checkedIndexes.has(index)).length + (order.descriptionDone ? 1 : 0);
-              const orderProgress = checklistItemCount > 0 ? `${completedItemCount}/${checklistItemCount} done` : "No items listed";
-              return <article className="checklist-order-card" key={order.id}>
-                <button type="button" className="checklist-order-toggle" aria-expanded={expanded} aria-controls={`checklist-food-${order.id}`} onClick={() => setExpandedChecklistOrders((current) => ({ ...current, [order.id]: !current[order.id] }))}>
-                  <span className="checklist-order-main"><strong>{order.productName} <span>× {order.quantity}{order.kilo ? ` · ${order.kilo} kg` : ""}</span></strong><small>{order.customer} · {formatTime(order.pickupTime)}</small></span>
-                  <span className="checklist-order-progress">{orderProgress}</span><ChevronDown size={18} className={expanded ? "expanded" : ""} />
-                </button>
-                {expanded && <div className="checklist-food-list" id={`checklist-food-${order.id}`}>
-                  {!description && food.length === 0 ? <p>No checklist items were saved for this order.</p> : <>
-                  {description && <label className={order.descriptionDone ? "checklist-food-item checklist-description-item done" : "checklist-food-item checklist-description-item"} key="order-description">
-                    <input type="checkbox" checked={order.descriptionDone === true} disabled={updatingFoodChecklistId === order.id} onChange={() => setFoodChecklistConfirmation({ order, itemType: "description", foodIndex: -1, foodName: description, nextChecked: !order.descriptionDone })} />
-                    <span>{description}</span>
-                  </label>}
-                  {food.map((foodName, foodIndex) => {
-                    const checked = checkedIndexes.has(foodIndex);
-                    return <label className={checked ? "checklist-food-item done" : "checklist-food-item"} key={`${foodName}-${foodIndex}`}>
-                      <input type="checkbox" checked={checked} disabled={updatingFoodChecklistId === order.id} onChange={() => setFoodChecklistConfirmation({ order, itemType: "food", foodIndex, foodName, nextChecked: !checked })} />
-                      <span>{foodName}</span>
-                    </label>;
-                  })}
-                  </>}
-                </div>}
-              </article>;
-            })}</div>}
+            {selectedChecklistItems.length === 0 ? <div className="calendar-empty-state">No food items for this date.</div> : <div className="calendar-orders-table-wrap checklist-summary-wrap"><table className="calendar-orders-table checklist-summary-table"><thead><tr><th>Order</th><th>Quantity</th></tr></thead><tbody>{selectedChecklistItems.map((item) => <tr key={item.label}><td>{item.label}</td><td><span className="checklist-summary-quantity">{item.quantity}</span></td></tr>)}</tbody></table></div>}
           </section>
         </div>
       </section>}
@@ -1691,13 +1676,6 @@ export default function HomePage() {
         return <div className="overlay confirmation-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) closeConfirmation(); }} onKeyDown={(event) => { if (event.key === "Escape") closeConfirmation(); }}><section className="dialog confirmation-dialog" role="alertdialog" aria-modal="true" aria-labelledby="order-action-title" aria-describedby="order-action-description"><span className="confirmation-icon">{isPayment ? <Banknote size={21} /> : <PackageCheck size={21} />}</span><div className="dialog-kicker">ORDER CONFIRMATION</div><h2 id="order-action-title">{isPayment ? "Confirm full payment?" : "Confirm order delivery?"}</h2><p id="order-action-description">{isPayment ? <>Has <strong>{order.customer}</strong> paid the full amount for this order? Confirm only after receiving the full payment; this will clear the remaining balance.</> : <>Are you sure <strong>{order.customer}</strong> is receiving this order? Confirm once it has been handed over to the customer.</>}</p><div className="confirmation-order-summary"><span>{order.productName} · {isPayment ? "Remaining balance" : `${formatDate(order.pickupDate)} · ${formatTime(order.pickupTime)}`}</span><strong>{isPayment ? peso(orderBalance(order)) : peso(order.total)}</strong></div><div className="confirmation-actions"><button className="confirmation-keep" autoFocus onClick={closeConfirmation} disabled={Boolean(confirmingOrderActionId)}>{isPayment ? "Not yet" : "Keep pending"}</button><button className="confirmation-accept" onClick={confirmOrderAction} disabled={Boolean(confirmingOrderActionId)}>{isConfirming ? "Saving…" : isPayment ? "Confirm full payment" : "Mark delivered"}</button></div></section></div>;
       })()}
 
-      {foodChecklistConfirmation && (() => {
-        const { order, foodName, nextChecked } = foodChecklistConfirmation;
-        const isSaving = updatingFoodChecklistId === order.id;
-        const closeConfirmation = () => { if (!updatingFoodChecklistId) setFoodChecklistConfirmation(null); };
-        return <div className="overlay confirmation-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) closeConfirmation(); }} onKeyDown={(event) => { if (event.key === "Escape") closeConfirmation(); }}><section className="dialog confirmation-dialog" role="alertdialog" aria-modal="true" aria-labelledby="food-checklist-confirmation-title" aria-describedby="food-checklist-confirmation-description"><span className="confirmation-icon"><ClipboardCheck size={21} /></span><div className="dialog-kicker">ORDER CHECKLIST</div><h2 id="food-checklist-confirmation-title">{nextChecked ? "Mark as done?" : "Undo done status?"}</h2><p id="food-checklist-confirmation-description">{nextChecked ? <>Confirm that <strong>{foodName}</strong> for <strong>{order.productName} × {order.quantity}</strong> is done.</> : <>Remove the done mark for <strong>{foodName}</strong> in <strong>{order.productName} × {order.quantity}</strong>?</>}</p><div className="confirmation-actions"><button className="confirmation-keep" autoFocus onClick={closeConfirmation} disabled={Boolean(updatingFoodChecklistId)}>Cancel</button><button className="confirmation-accept" onClick={confirmFoodChecklist} disabled={Boolean(updatingFoodChecklistId)}>{isSaving ? "Saving…" : nextChecked ? "Confirm done" : "Undo done"}</button></div></section></div>;
-      })()}
-
       {productRemovalConfirmation && <div className="overlay confirmation-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget && !removingProductId) setProductRemovalConfirmation(null); }} onKeyDown={(event) => { if (event.key === "Escape" && !removingProductId) setProductRemovalConfirmation(null); }}><section className="dialog confirmation-dialog" role="alertdialog" aria-modal="true" aria-labelledby="remove-product-title" aria-describedby="remove-product-description"><span className="confirmation-icon"><CircleAlert size={21} /></span><div className="dialog-kicker">THE CKB MENU</div><h2 id="remove-product-title">Remove this menu item?</h2><p id="remove-product-description">You’re removing <strong>{productRemovalConfirmation.orderName}</strong>. Customers will no longer be able to order it. This can’t be undone.</p><div className="confirmation-actions"><button className="confirmation-keep" autoFocus onClick={() => setProductRemovalConfirmation(null)} disabled={Boolean(removingProductId)}>Keep item</button><button className="confirmation-cancel" onClick={confirmProductRemoval} disabled={Boolean(removingProductId)}>{removingProductId === productRemovalConfirmation.id ? "Removing…" : "Remove item"}</button></div></section></div>}
 
       {logoutConfirmationOpen && <div className="overlay confirmation-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) setLogoutConfirmationOpen(false); }} onKeyDown={(event) => { if (event.key === "Escape") setLogoutConfirmationOpen(false); }}><section className="dialog confirmation-dialog" role="alertdialog" aria-modal="true" aria-labelledby="logout-title" aria-describedby="logout-description"><span className="confirmation-icon"><LogOut size={20} /></span><div className="dialog-kicker">CKB LECHON HOUSE</div><h2 id="logout-title">Logout Confirmation</h2><p id="logout-description">Are you sure you want to end your session?</p><div className="confirmation-actions"><button className="confirmation-keep" autoFocus onClick={() => setLogoutConfirmationOpen(false)}>Stay signed in</button><button className="confirmation-cancel" onClick={logout}>Log out</button></div></section></div>}
@@ -1725,7 +1703,7 @@ export default function HomePage() {
           </div>
         </section>
       </div>}
-      {orderProduct && (
+      {orderProduct && !walkInOrderMode && (
         <div className="overlay order-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) setOrderProduct(null); }}>
           <section className="dialog order-dialog" role="dialog" aria-modal="true" aria-labelledby="pickup-title">
             <button className="dialog-close" onClick={() => setOrderProduct(null)} aria-label="Close"><X size={19} /></button>
@@ -1747,6 +1725,29 @@ export default function HomePage() {
           </section>
         </div>
       )}
+
+      {walkInOrderMode && canManage && <div className="overlay order-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) closeWalkInOrder(); }} onKeyDown={(event) => { if (event.key === "Escape") closeWalkInOrder(); }}>
+        <section className="dialog order-dialog walk-in-order-dialog" role="dialog" aria-modal="true" aria-labelledby="walk-in-order-title">
+          <button className="dialog-close" autoFocus onClick={closeWalkInOrder} aria-label="Close walk-in order" disabled={busy}><X size={19} /></button>
+          <div className="dialog-kicker">WALK-IN ORDER</div>
+          <h2 id="walk-in-order-title">Add an order.</h2>
+          <p className="walk-in-order-intro">Enter the customer and pickup details.</p>
+          <form className="auth-form" onSubmit={submitWalkInOrder}>
+            <label>Order<select required value={orderProduct?.id ?? ""} onChange={(event) => selectWalkInProduct(event.target.value)}><option value="">Choose a menu item</option>{walkInProducts.map((product) => <option key={product.id} value={product.id}>{product.name}{product.description ? ` · ${product.description}` : ""}</option>)}</select></label>
+            {walkInProducts.length === 0 && <div className="pickup-note">No active menu items are available to order.</div>}
+            {orderProduct?.description && <p className="walk-in-order-product-description">{orderProduct.description}</p>}
+            {orderProduct?.orderName === "Whole Lechon" && <label>Kilo<select required value={orderKilo} onChange={(event) => setOrderKilo(event.target.value)}><option value="">Choose kilo</option>{orderKiloOptions.map(({ kilo, price }) => <option key={kilo} value={kilo}>{kilo} kg · {peso(price)}</option>)}</select></label>}
+            <label>Quantity{orderProduct && allowsDecimalQuantity(orderProduct.orderName) && " (decimal amounts allowed)"}<input type="number" min={orderProduct && allowsDecimalQuantity(orderProduct.orderName) ? 0.01 : 1} max={orderProduct && allowsDecimalQuantity(orderProduct.orderName) && typeof orderProduct.stock === "number" ? Math.min(99, orderProduct.stock) : 99} step={orderProduct && allowsDecimalQuantity(orderProduct.orderName) ? "any" : 1} required value={orderQuantity} onChange={(event) => setOrderQuantity(event.target.value)} /></label>
+            <label>Name<input required autoComplete="name" value={walkInCustomer.name} onChange={(event) => setWalkInCustomer((current) => ({ ...current, name: event.target.value }))} /></label>
+            <label>Address<input required autoComplete="street-address" value={walkInCustomer.address} onChange={(event) => setWalkInCustomer((current) => ({ ...current, address: event.target.value }))} /></label>
+            <label>Contact No.<input required type="tel" autoComplete="tel" value={walkInCustomer.phone} onChange={(event) => setWalkInCustomer((current) => ({ ...current, phone: event.target.value }))} /></label>
+            <div className="pickup-fields"><label>Pickup Date<input required type="date" min={orderProduct?.saleType === "promo" && orderProduct.promoFrom && orderProduct.promoFrom > today ? orderProduct.promoFrom : today} max={orderProduct?.saleType === "promo" ? orderProduct.promoTo : undefined} value={pickupDate} onChange={(event) => setPickupDate(event.target.value)} /></label><label>Pickup Time<input required type="time" value={pickupTime} onChange={(event) => setPickupTime(event.target.value)} /></label></div>
+            {orderProduct?.saleType === "promo" && <div className="pickup-note">Promo pickup dates: {formatDate(orderProduct.promoFrom ?? "")} – {formatDate(orderProduct.promoTo ?? "")}.</div>}
+            {orderProduct && <p className="walk-in-order-total"><span>Order total</span><strong>{peso(orderTotal)}</strong></p>}
+            <button className="submit-button" disabled={busy || !orderProduct || !pickupDate || !pickupTime || (orderProduct?.orderName === "Whole Lechon" && !orderKiloOptions.some((option) => option.kilo === orderKilo))}>{busy ? "Saving walk-in order..." : "Add walk-in order"}<ArrowRight size={16} /></button>
+          </form>
+        </section>
+      </div>}
 
       {orderPolicyConfirmationOpen && orderProduct && <div className="overlay confirmation-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) setOrderPolicyConfirmationOpen(false); }} onKeyDown={(event) => { if (event.key === "Escape" && !busy) setOrderPolicyConfirmationOpen(false); }}><section className="dialog confirmation-dialog" role="alertdialog" aria-modal="true" aria-labelledby="order-policy-title" aria-describedby="order-policy-description"><span className="confirmation-icon"><CircleHelp size={21} /></span><div className="dialog-kicker">ORDERING POLICIES</div><h2 id="order-policy-title">Before you place your order.</h2><p id="order-policy-description">Please prepare the downpayment for your order. Downpayments are non-refundable once paid. You may reschedule, subject to stock availability. By selecting “I agree and place order,” you confirm that you have read and agree to these ordering policies.</p><div className="confirmation-actions"><button className="confirmation-keep" autoFocus onClick={() => setOrderPolicyConfirmationOpen(false)} disabled={busy}>Cancel</button><button className="confirmation-accept" onClick={confirmOrderPolicy} disabled={busy}>{busy ? "Placing order…" : "I agree and place order"}</button></div></section></div>}
 
